@@ -27,9 +27,13 @@ export class Game {
   }
 
   on(ev, fn) { this.socket.on(ev, fn); this.handlers.push([ev, fn]); }
-  destroy() { this.active = false; for (const [ev, fn] of this.handlers) this.socket.off(ev, fn); this.world.clearZone(); }
+  destroy() { this.world.labels.removeEventListener('mouseover', this.onOver); this.world.labels.removeEventListener('mouseout', this.onOut); this.ui.showLootCard(null); this.active = false; for (const [ev, fn] of this.handlers) this.socket.off(ev, fn); this.world.clearZone(); }
 
   bind() {
+    const layer = this.world.labels;
+    this.onOver = (e) => { const id = e.target.closest?.('.lbl')?.dataset.id; this.hoverLoot = id || null; };
+    this.onOut = () => { this.hoverLoot = null; };
+    layer.addEventListener('mouseover', this.onOver); layer.addEventListener('mouseout', this.onOut);
     this.on('zone', (z) => this.loadZone(z));
     this.on('snap', (s) => this.onSnap(s));
     this.on('add', (list) => list.forEach((e) => this.addEnt(e)));
@@ -46,6 +50,7 @@ export class Game {
     this.on('char', (d) => {
       this.char = d.char; this.derived = d.derived; this.next = d.next;
       this.ui.setChar(this.char, this.derived, this.next);
+      this.remarkLoot();
     });
     this.on('levelup', (d) => {
       const v = this.world.ents.get(`p${d.pid}`);
@@ -104,10 +109,17 @@ export class Game {
     if (p.pid === this.pid) { this.me = v; v.local = true; this.hp = p.hp; this.hpMax = p.hpMax; }
   }
 
+  markLoot(v) {
+    if (!v.label || !v.e.item) return;
+    v.label.innerHTML = `${this.ui.lootMark(v.e.item)}${v.e.item.name.replace(/[&<>]/g, '')}`;
+  }
+  remarkLoot() { for (const v of this.world.ents.values()) if (v.k === 'l') this.markLoot(v); }
+
   addEnt(e) {
     const v = this.world.add(e);
     if (v && e.k === 'm') { v.hp = e.hp; v.hpMax = e.hpMax; v.dead = e.dead; }
-    if (v && e.k === 'l' && e.item && e.item.rarity !== 'common') this.sfx.play('drop');
+    if (v && e.k === 'l' && e.item && e.item.rarity !== 'common' && !e.dropped) this.sfx.play('drop');
+    if (v && e.k === 'l' && e.item) this.markLoot(v);
     return v;
   }
 
@@ -440,6 +452,14 @@ export class Game {
     this.ui.skills(this.cds, t, this.mp);
     const usable = this.ui.anyOpen() ? null : this.findUsable();
     this.ui.prompt(usable?.text || null);
+    // Item card for loot under the mouse, or the item you're standing next to.
+    let lootV = null;
+    if (!this.ui.anyOpen()) {
+      if (this.hoverLoot && W.ents.has(this.hoverLoot)) lootV = W.ents.get(this.hoverLoot);
+      else if (usable?.kind === 'loot') lootV = W.ents.get(usable.id);
+    }
+    if (lootV?.e.item && lootV.label && lootV.label.style.display !== 'none') this.ui.showLootCard(lootV.e.item, lootV.label.getBoundingClientRect());
+    else this.ui.showLootCard(null);
     if (this.target && (t > this.targetUntil || this.target.dead || !W.ents.has(this.target.id))) this.target = null;
     this.ui.target(this.target);
     let boss = null;

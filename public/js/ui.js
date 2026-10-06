@@ -220,6 +220,26 @@ export class UI {
     return `<button class="${cls} ${extra}" ${attrs} type="button">${it ? `<img src="${itemIcon(it)}" alt="" width="100%" draggable="false" style="max-width:56px">` : ''}${it && this.isUpgrade(it) ? '<span class="up">▲</span>' : ''}</button>`;
   }
 
+  // Small marker for items on the ground: ▲ upgrade, ✕ level too high.
+  lootMark(it) {
+    if (!this.char || !it) return '';
+    if (it.req > this.char.level) return '<i class="mk bad" title="Level too high">✕</i>';
+    if (!this.char.equip[it.slot]) return '<i class="mk up" title="Empty slot">▲</i>';
+    return this.isUpgrade(it) ? '<i class="mk up" title="Upgrade">▲</i>' : '';
+  }
+
+  showLootCard(it, anchorRect) {
+    const tip = $('#tooltip');
+    if (!it) { tip.classList.add('hidden'); this.tipItem = null; return; }
+    if (this.tipItem !== it) { tip.innerHTML = this.itemCard(it); this.tipItem = it; }
+    tip.classList.remove('hidden');
+    const w = tip.offsetWidth; const h = tip.offsetHeight;
+    let x = anchorRect ? anchorRect.left + anchorRect.width / 2 - w / 2 : innerWidth - w - 16;
+    let y = anchorRect ? anchorRect.top - h - 10 : innerHeight / 2 - h / 2;
+    x = Math.max(8, Math.min(innerWidth - w - 8, x)); y = Math.max(8, Math.min(innerHeight - h - 8, y));
+    tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  }
+
   isUpgrade(it) {
     if (!this.char || !it || it.req > this.char.level) return false;
     const cur = this.char.equip[it.slot];
@@ -298,7 +318,7 @@ export class UI {
   renderDetail() {
     const box = $('#item-detail');
     const ch = this.char;
-    if (!this.sel) { box.innerHTML = '<div class="muted" style="font-size:13px">Select an item. Double-click (or press A) to equip.</div>'; return; }
+    if (!this.sel) { box.innerHTML = '<div class="muted" style="font-size:13px">Select an item. Double-click to equip. Dropped items stay on the ground for a few minutes.</div>'; return; }
     if (this.sel.eq) {
       const it = ch.equip[this.sel.eq];
       box.innerHTML = it ? `${this.itemCard(it, { compare: false })}<div class="idet acts" style="border:0;background:none;padding:0"><button class="btn small" id="act-unequip" type="button">Unequip</button></div>` : '';
@@ -309,10 +329,10 @@ export class UI {
       box.innerHTML = `${this.itemCard(it)}<div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn small gold" id="act-equip" type="button" ${it.req > ch.level ? 'disabled' : ''}>Equip</button>
         ${this.h.nearShop() ? `<button class="btn small" id="act-sell" type="button">Sell (${fmt(it.value)}g)</button>` : ''}
-        <button class="btn small ghost danger" id="act-drop" type="button">Destroy</button></div>`;
+        <button class="btn small ghost" id="act-drop" type="button">Drop</button></div>`;
       $('#act-equip')?.addEventListener('click', () => this.h.inv({ op: 'equip', idx: this.sel.inv }));
       $('#act-sell')?.addEventListener('click', () => this.h.inv({ op: 'sell', idx: this.sel.inv }));
-      $('#act-drop')?.addEventListener('click', () => { if (it.rarity === 'common' || confirmDestroy(it)) this.h.inv({ op: 'drop', idx: this.sel.inv }); });
+      $('#act-drop')?.addEventListener('click', () => { this.h.inv({ op: 'drop', idx: this.sel.inv }); this.sel = null; });
     }
   }
 
@@ -371,7 +391,7 @@ export class UI {
 
   controlsHelp(src) {
     $('#controls-help').innerHTML = src === 'pad'
-      ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> sell · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
+      ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> drop (sell in shops) · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
       : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Left click</kbd>/<kbd>Space</kbd> attack · <kbd>Right click</kbd> Cleave · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> or middle-drag rotate camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
   }
 
@@ -473,7 +493,7 @@ export class UI {
   padSecondary() {
     const root = this.openPanelEl(); if (!root) return;
     const k = this.focusKey(document.activeElement);
-    if (root.id === 'char-panel' && k?.attr === 'inv' && this.char.inv[Number(k.val)] && this.h.nearShop()) this.h.inv({ op: 'sell', idx: Number(k.val) });
+    if (root.id === 'char-panel' && k?.attr === 'inv' && this.char.inv[Number(k.val)]) { this.h.inv({ op: 'drop', idx: Number(k.val) }); this.sel = null; }
     if (root.id === 'shop-panel' && k?.attr === 'sell' && this.char.inv[Number(k.val)]) this.h.inv({ op: 'equip', idx: Number(k.val) });
   }
 

@@ -350,3 +350,10 @@ body.touch-on .use-prompt { display: none; }
 body.pad-on .pad-hints { display: block; }
 body.pad-on .sheet button:focus, body.pad-on .modal button:focus, body.pad-on .sheet select:focus, body.pad-on .modal select:focus, body.pad-on .modal input:focus, body.pad-on .sheet input:focus { outline: 3px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 14px rgba(227, 184, 102, .7); }
 body.pad-on .chk:focus-within { color: var(--gold); }
+
+/* ground loot: upgrade / too-high markers and the hover card */
+.lbl .mk { font-style: normal; font-weight: 800; margin-right: 4px; }
+.lbl .mk.up { color: #6fe08a; }
+.lbl .mk.bad { color: #ff6a6a; }
+.tooltip { left: 0; top: 0; width: 280px; will-change: transform; }
+.tooltip .idet { box-shadow: 0 10px 30px rgba(0,0,0,.6); background: rgba(24, 17, 11, .96); }

@@ -173,7 +173,8 @@ export class Party {
       }
       case 'drop': {
         if (!validIdx(idx) || !inv[idx]) return 'Nothing there';
-        inv[idx] = null; // destroyed (simple for now)
+        if (!this.zone?.dropItem(pid, inv[idx])) return 'Can\'t drop that here';
+        inv[idx] = null;
         break;
       }
       case 'sell': {

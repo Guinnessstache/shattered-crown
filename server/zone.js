@@ -80,7 +80,7 @@ export class Zone {
       case 'm': return { id: e.id, k: 'm', type: e.type, x: r1(e.x), y: r1(e.y), rot: r2(e.rot), hp: e.hp, hpMax: e.hpMax, elite: e.elite, boss: e.boss, name: e.name, level: e.level, dead: e.state === 'dead' };
       case 'b': return { id: e.id, k: 'b', type: e.type, x: r1(e.x), y: r1(e.y) };
       case 'c': return { id: e.id, k: 'c', x: e.x, y: e.y, rot: e.rot, open: e.open, boss: e.boss };
-      case 'l': return { id: e.id, k: 'l', x: r1(e.x), y: r1(e.y), gold: e.gold || 0, potion: e.potion || null, item: e.item ? { name: e.item.name, rarity: e.item.rarity, slot: e.item.slot, kind: e.item.kind, tier: e.item.tier } : null };
+      case 'l': return { id: e.id, k: 'l', x: r1(e.x), y: r1(e.y), gold: e.gold || 0, potion: e.potion || null, item: e.item || null };
       case 'x': return { id: e.id, k: 'x', kind: e.kind, x: r1(e.x), y: r1(e.y), vx: r2(e.vx), vy: r2(e.vy) };
       default: return null;
     }
@@ -349,6 +349,17 @@ export class Zone {
       if (!this.map.walkableAt(lx, ly)) { lx = x; ly = y; }
       this.addEnt({ id: eid('l'), k: 'l', owner: p.pid, x: lx, y: ly, ...d, born: this.time });
     });
+  }
+
+  // A player dropped an item from their pack: it lies at their feet (only they can see it).
+  dropItem(pid, item) {
+    const p = this.players.get(pid);
+    if (!p) return false;
+    const a = this.rng.float(0, Math.PI * 2);
+    let x = p.x + Math.sin(a) * 0.9; let y = p.y + Math.cos(a) * 0.9;
+    if (!this.map.walkableAt(x, y)) { x = p.x; y = p.y; }
+    this.addEnt({ id: eid('l'), k: 'l', owner: pid, x, y, item, born: this.time, dropped: true });
+    return true;
   }
 
   onPickup(pid, d) {
