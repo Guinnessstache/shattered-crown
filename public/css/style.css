@@ -382,3 +382,6 @@ body.pad-on .screen button:focus, body.pad-on .screen input:focus, body.pad-on #
 .vkb-keys button.wide { grid-column: span 2; }
 .vkb-keys button.wider { grid-column: span 4; }
 .vkb-keys button.done { background: linear-gradient(180deg, #e9c376, #a8792c); color: #24150a; }
+
+#menu-panel .panel { max-height: calc(100dvh - 24px); overflow-y: auto; }
+.audio-settings h3 { margin-bottom: 10px; }

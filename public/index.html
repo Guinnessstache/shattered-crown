@@ -215,14 +215,7 @@
       <div id="party-list" class="party-list"></div>
       <label class="chk"><input type="checkbox" id="voice-toggle" /> Voice chat (microphone)</label>
       <label class="chk"><input type="checkbox" id="ptt-toggle" /> Push-to-talk (hold V)</label>
-      <div class="audio-settings">
-        <label class="field"><span>Microphone</span><select id="mic-select"><option value="">System default</option></select></label>
-        <label class="field" id="spk-field"><span>Speakers / headset</span><select id="spk-select"><option value="">System default</option></select></label>
-        <label class="field"><span>Mic volume <b id="mic-gain-val">100%</b></span><input id="mic-gain" type="range" min="0" max="2" step="0.05" value="1" /></label>
-        <div class="mic-meter" title="Your microphone level"><i id="mic-meter-bar"></i></div>
-        <label class="field"><span>Friends' voice volume <b id="voice-vol-val">100%</b></span><input id="voice-vol" type="range" min="0" max="1" step="0.05" value="1" /></label>
-        <p id="device-note" class="muted" style="font-size:12px;margin:0"></p>
-      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">Microphone, speakers and volume are in ☰ Menu → Voice &amp; audio.</p>
       <div class="pad-hints"><b>A</b> Select · <b>B</b> Close</div>
       <div class="row-end"><button class="btn ghost" data-close type="button">Close</button></div>
     </div>
@@ -240,6 +233,15 @@
       <label class="chk"><input type="checkbox" id="labels-toggle" checked /> Show item names on the ground</label>
       <label class="chk"><input type="checkbox" id="invy-toggle" /> Invert camera up/down (controller right stick)</label>
       <label class="chk"><input type="checkbox" id="invx-toggle" /> Invert camera left/right (controller right stick)</label>
+      <div class="audio-settings">
+        <h3>Voice &amp; audio</h3>
+        <label class="field"><span>Microphone</span><select id="mic-select"><option value="">System default</option></select></label>
+        <label class="field" id="spk-field"><span>Speakers / headset</span><select id="spk-select"><option value="">System default</option></select></label>
+        <label class="field"><span>Mic volume <b id="mic-gain-val">100%</b></span><input id="mic-gain" type="range" min="0" max="2" step="0.05" value="1" /></label>
+        <div class="mic-meter" title="Your microphone level"><i id="mic-meter-bar"></i></div>
+        <label class="field"><span>Friends' voice volume <b id="voice-vol-val">100%</b></span><input id="voice-vol" type="range" min="0" max="1" step="0.05" value="1" /></label>
+        <p id="device-note" class="muted" style="font-size:12px;margin:0"></p>
+      </div>
       <div class="controls-help" id="controls-help"></div>
       <div class="pad-hints"><b>A</b> Select · ◀ ▶ Change setting · <b>B</b> Close</div>
       <div class="row-end">

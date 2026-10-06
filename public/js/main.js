@@ -35,7 +35,7 @@ const ui = new UI({
   chat: (text) => socket.emit('chat', { text }),
   leave: () => leaveGame(),
   nearShop: () => game?.nearShop(),
-  panelsChanged: (open) => { if (open) sfx.play('click'); },
+  panelsChanged: (open) => { if (open) { sfx.play('click'); if (!$('#menu-panel').classList.contains('hidden')) fillDevices(); } },
 });
 
 const input = new Input(world.renderer.domElement, {
@@ -315,7 +315,7 @@ async function fillDevices() {
   $('#device-note').textContent = d.labelled ? (voice.canPickOutput() ? '' : 'This browser always uses the system speakers.')
     : 'Turn on voice chat once to see your device names.';
 }
-$('#party-btn').addEventListener('click', () => setTimeout(fillDevices, 0));
+$('#menu-btn').addEventListener('click', () => setTimeout(fillDevices, 0));
 navigator.mediaDevices?.addEventListener?.('devicechange', fillDevices);
 $('#mic-select').addEventListener('change', async (e) => {
   store.set('micId', e.target.value);
@@ -328,7 +328,7 @@ $('#mic-gain').addEventListener('input', (e) => { const v = Number(e.target.valu
 $('#voice-vol').value = store.get('voiceVol', '1'); $('#voice-vol-val').textContent = pct(Number($('#voice-vol').value));
 $('#voice-vol').addEventListener('input', (e) => { const v = Number(e.target.value); voice?.setVoiceVolume(v); store.set('voiceVol', String(v)); $('#voice-vol-val').textContent = pct(v); });
 setInterval(() => {
-  if ($('#party-panel').classList.contains('hidden')) return;
+  if ($('#menu-panel').classList.contains('hidden')) return;
   $('#mic-meter-bar').style.width = `${Math.round((voice?.micOn ? voice.myLevel() : 0) * 100)}%`;
 }, 80);
 $('#voice-toggle').addEventListener('change', (e) => toggleMic(e.target.checked));
