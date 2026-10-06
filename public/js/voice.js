@@ -2,13 +2,18 @@
 // MediaManager, audio only). Signaling goes through the game socket; "perfect negotiation" lets
 // either side add the microphone at any time.
 export class Voice {
-  constructor(socket, { onLevel } = {}) {
+  constructor(socket, opts = {}) {
+    const { onLevel } = opts;
     this.socket = socket;
     this.myPid = null;
     this.peers = new Map();
     this.local = null;
     this.micOn = false;
     this.ptt = false; this.pttDown = false;
+    // Chosen devices ('' = system default), mic gain (1 = 100%) and other players' voice volume.
+    this.devices = { input: opts.input || '', output: opts.output || '' };
+    this.micGain = opts.micGain ?? 1;
+    this.voiceVol = opts.voiceVol ?? 1;
     this.onLevel = onLevel;
     this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     this.host = document.createElement('div'); this.host.style.display = 'none'; document.body.appendChild(this.host);
@@ -46,6 +51,8 @@ export class Voice {
       const stream = streams[0] || new MediaStream([track]);
       if (!peer.audio) { peer.audio = document.createElement('audio'); peer.audio.autoplay = true; this.host.appendChild(peer.audio); }
       peer.audio.srcObject = stream;
+      peer.audio.volume = this.voiceVol;
+      this.applySink(peer.audio);
       peer.audio.play().catch(() => {});
       this.attach(peer, stream);
     };
@@ -102,21 +109,74 @@ export class Voice {
   transmitting() { return this.micOn && (!this.ptt || this.pttDown); }
   applyGate() { const t = this.local?.getAudioTracks()[0]; if (t) t.enabled = this.transmitting(); }
 
+  audioConstraints(id = this.devices.input) {
+    const c = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    if (id) c.deviceId = { exact: id };
+    return c;
+  }
+
+  // The mic runs through a gain node, so the volume slider changes what friends hear
+  // without renegotiating the call. Switching microphones swaps only the source.
   async start() {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('Voice chat needs HTTPS (or localhost).');
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    let raw;
+    try { raw = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(), video: false }); }
+    catch { raw = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(''), video: false }); } // saved mic unplugged
+    const ctx = this.ctx();
+    this.raw = raw;
+    this.srcNode = ctx.createMediaStreamSource(raw);
+    this.gainNode = ctx.createGain(); this.gainNode.gain.value = this.micGain;
+    this.dest = ctx.createMediaStreamDestination();
+    this.srcNode.connect(this.gainNode); this.gainNode.connect(this.dest);
+    const an = ctx.createAnalyser(); an.fftSize = 512; this.gainNode.connect(an);
+    this.meter = { analyser: an, buf: new Uint8Array(an.fftSize) };
+    const stream = this.dest.stream;
     this.local = stream; this.micOn = true;
-    this.meter = {}; this.attach(this.meter, stream);
     for (const p of this.peers.values()) for (const t of stream.getTracks()) p.pc.addTrack(t, stream);
     this.applyGate();
     this.socket.emit('media', { mic: true });
+  }
+
+  async setInput(id) {
+    this.devices.input = id || '';
+    if (!this.raw) return; // used next time the mic starts
+    const fresh = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(), video: false });
+    this.srcNode.disconnect();
+    this.raw.getTracks().forEach((t) => t.stop());
+    this.raw = fresh;
+    this.srcNode = this.ctx().createMediaStreamSource(fresh);
+    this.srcNode.connect(this.gainNode);
+  }
+
+  setOutput(id) { this.devices.output = id || ''; for (const p of this.peers.values()) this.applySink(p.audio); }
+  applySink(el) { if (el?.setSinkId) el.setSinkId(this.devices.output || '').catch(() => {}); }
+  setMicGain(v) { this.micGain = v; if (this.gainNode) this.gainNode.gain.value = v; }
+  setVoiceVolume(v) { this.voiceVol = v; for (const p of this.peers.values()) if (p.audio) p.audio.volume = v; }
+  canPickOutput() { return 'setSinkId' in HTMLMediaElement.prototype; }
+
+  /** Microphones and speakers. Names stay blank until the page has microphone permission. */
+  async listDevices() {
+    const all = (await navigator.mediaDevices?.enumerateDevices?.().catch(() => [])) || [];
+    const pick = (kind, word) => all.filter((d) => d.kind === kind && d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d, i) => ({ id: d.deviceId, label: d.label || `${word} ${i + 1}` }));
+    return { input: pick('audioinput', 'Microphone'), output: pick('audiooutput', 'Speakers'), labelled: all.some((d) => d.label) };
+  }
+
+  // Level of my own (gained) mic, 0..1, for the settings meter.
+  myLevel() {
+    const t = this.meter; if (!t?.analyser) return 0;
+    t.analyser.getByteTimeDomainData(t.buf);
+    let s = 0; for (const v of t.buf) { const x = (v - 128) / 128; s += x * x; }
+    return Math.min(1, Math.sqrt(s / t.buf.length) * 6);
   }
 
   stop() {
     if (!this.local) return;
     for (const p of this.peers.values()) for (const s of p.pc.getSenders()) if (s.track && this.local.getTracks().includes(s.track)) { try { p.pc.removeTrack(s); } catch { /* ignore */ } }
     this.local.getTracks().forEach((t) => t.stop());
-    this.local = null; this.meter = null; this.micOn = false;
+    this.raw?.getTracks().forEach((t) => t.stop());
+    try { this.srcNode?.disconnect(); this.gainNode?.disconnect(); } catch { /* ignore */ }
+    this.local = null; this.raw = null; this.meter = null; this.micOn = false;
     this.socket.emit('media', { mic: false });
   }
 

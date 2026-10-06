@@ -148,7 +148,7 @@ function connect() {
     if (game) { ui.msg('Connection lost — reconnecting…', 'warn'); }
   });
   socket.io.on('reconnect', () => { if (game) { endGame(); loadChars(); $('#select-error').textContent = 'You were disconnected. Your hero was saved.'; } });
-  voice = new Voice(socket, { onLevel: (pid, lvl) => ui.talking(pid, lvl) });
+  voice = new Voice(socket, { onLevel: (pid, lvl) => ui.talking(pid, lvl), input: store.get('micId', ''), output: store.get('spkId', ''), micGain: Number(store.get('micGain', '1')), voiceVol: Number(store.get('voiceVol', '1')) });
   voice.setPtt(store.get('ptt', '0') === '1');
 }
 
@@ -293,11 +293,42 @@ function leaveGame() {
 // Voice chat
 async function toggleMic(on) {
   try {
-    if (on) { await voice.start(); ui.msg('Microphone on', 'good'); } else { voice.stop(); }
+    if (on) { await voice.start(); ui.msg('Microphone on', 'good'); fillDevices(); } else { voice.stop(); }
   } catch (e) { ui.msg(e.message || 'Microphone blocked', 'warn'); on = false; }
   $('#mic-btn').classList.toggle('on', on); $('#voice-toggle').checked = on;
 }
 $('#mic-btn').addEventListener('click', () => toggleMic(!voice.micOn));
+
+// Audio devices and levels (Party panel)
+async function fillDevices() {
+  if (!voice) return;
+  const d = await voice.listDevices();
+  const fill = (sel, list, cur) => {
+    sel.innerHTML = '<option value="">System default</option>' + list.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('');
+    sel.value = list.some((x) => x.id === cur) ? cur : '';
+  };
+  fill($('#mic-select'), d.input, voice.devices.input);
+  fill($('#spk-select'), d.output, voice.devices.output);
+  $('#spk-field').classList.toggle('hidden', !voice.canPickOutput());
+  $('#device-note').textContent = d.labelled ? (voice.canPickOutput() ? '' : 'This browser always uses the system speakers.')
+    : 'Turn on voice chat once to see your device names.';
+}
+$('#party-btn').addEventListener('click', () => setTimeout(fillDevices, 0));
+navigator.mediaDevices?.addEventListener?.('devicechange', fillDevices);
+$('#mic-select').addEventListener('change', async (e) => {
+  store.set('micId', e.target.value);
+  try { await voice.setInput(e.target.value); ui.msg('Microphone changed', 'good'); } catch { ui.msg('Could not open that microphone', 'warn'); }
+});
+$('#spk-select').addEventListener('change', (e) => { store.set('spkId', e.target.value); voice.setOutput(e.target.value); });
+const pct = (v) => `${Math.round(v * 100)}%`;
+$('#mic-gain').value = store.get('micGain', '1'); $('#mic-gain-val').textContent = pct(Number($('#mic-gain').value));
+$('#mic-gain').addEventListener('input', (e) => { const v = Number(e.target.value); voice?.setMicGain(v); store.set('micGain', String(v)); $('#mic-gain-val').textContent = pct(v); });
+$('#voice-vol').value = store.get('voiceVol', '1'); $('#voice-vol-val').textContent = pct(Number($('#voice-vol').value));
+$('#voice-vol').addEventListener('input', (e) => { const v = Number(e.target.value); voice?.setVoiceVolume(v); store.set('voiceVol', String(v)); $('#voice-vol-val').textContent = pct(v); });
+setInterval(() => {
+  if ($('#party-panel').classList.contains('hidden')) return;
+  $('#mic-meter-bar').style.width = `${Math.round((voice?.micOn ? voice.myLevel() : 0) * 100)}%`;
+}, 80);
 $('#voice-toggle').addEventListener('change', (e) => toggleMic(e.target.checked));
 $('#ptt-toggle').checked = store.get('ptt', '0') === '1';
 $('#ptt-toggle').addEventListener('change', (e) => { voice?.setPtt(e.target.checked); store.set('ptt', e.target.checked ? '1' : '0'); });

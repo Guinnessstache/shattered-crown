@@ -357,3 +357,11 @@ body.pad-on .chk:focus-within { color: var(--gold); }
 .lbl .mk.bad { color: #ff6a6a; }
 .tooltip { left: 0; top: 0; width: 280px; will-change: transform; }
 .tooltip .idet { box-shadow: 0 10px 30px rgba(0,0,0,.6); background: rgba(24, 17, 11, .96); }
+
+/* voice settings */
+.audio-settings { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.audio-settings .field { margin-bottom: 10px; }
+.audio-settings .field span b { color: var(--gold); text-transform: none; }
+.mic-meter { height: 8px; border-radius: 4px; background: rgba(0,0,0,.5); border: 1px solid var(--line); overflow: hidden; margin: -4px 0 12px; }
+.mic-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3fae5f, #e2c341 70%, #e04a4a); transition: width .08s; }
+#party-panel .panel { max-height: calc(100dvh - 24px); overflow-y: auto; }
