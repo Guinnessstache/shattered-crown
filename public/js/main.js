@@ -43,10 +43,11 @@ const input = new Input(world.renderer.domElement, {
     sfx.unlock(); voice?.unlock();
     if (name === 'ptt' && !down) { voice?.pushToTalk(false); return; }
     if (game) game.action(name, down, src);
+    else if (down && src === 'pad') titlePad(name);
   },
   onCamera: (dyaw, dzoom, dpitch = 0) => { world.yaw += dyaw; world.targetDist = Math.max(9, Math.min(24, world.targetDist + dzoom)); world.pitch = Math.max(0.5, Math.min(1.3, world.pitch + dpitch)); },
-  menuOpen: () => ui.anyOpen(),
-  onSource: (s) => { ui.setSource(s); ui.controlsHelp(s); if (s === 'touch' && !touchOn) setTouch(true); },
+  menuOpen: () => !game || ui.anyOpen() || vkbOpen(),
+  onSource: (s) => { ui.setSource(s); ui.controlsHelp(s); if (s === 'touch' && !touchOn) setTouch(true); if (s === 'pad' && !game) setTimeout(() => focusTitle(), 0); },
 });
 input.bindTouch($('#touch'));
 let touchOn = store.get('touch', coarse ? '1' : '0') === '1';
@@ -159,6 +160,7 @@ function loadChars() {
     $('#who-name').textContent = `Signed in as ${r.username}`;
     show('select');
     renderHeroes();
+    if (input.source === 'pad') setTimeout(focusTitle, 0);
   });
 }
 
@@ -196,7 +198,7 @@ $('#new-hero-btn').addEventListener('click', () => {
   $('#create-error').textContent = '';
   $('#hero-name').value = '';
   $('#create-modal').classList.remove('hidden');
-  $('#hero-name').focus();
+  if (input.source === 'pad') $('#class-list .class-opt.active')?.focus(); else $('#hero-name').focus();
 });
 $('#create-modal [data-close]').addEventListener('click', () => $('#create-modal').classList.add('hidden'));
 $('#create-hero-btn').addEventListener('click', () => {
@@ -332,6 +334,108 @@ setInterval(() => {
 $('#voice-toggle').addEventListener('change', (e) => toggleMic(e.target.checked));
 $('#ptt-toggle').checked = store.get('ptt', '0') === '1';
 $('#ptt-toggle').addEventListener('change', (e) => { voice?.setPtt(e.target.checked); store.set('ptt', e.target.checked ? '1' : '0'); });
+
+// ------------------------------------------------------------ controller on the title screens
+const vkbOpen = () => !$('#vkb').classList.contains('hidden');
+function titleRoot() {
+  if (vkbOpen()) return $('#vkb');
+  if (!$('#create-modal').classList.contains('hidden')) return $('#create-modal');
+  return ['auth', 'select'].map((id) => $(`#${id}`)).find((el) => !el.classList.contains('hidden')) || null;
+}
+function focusTitle() {
+  const root = titleRoot(); if (!root || root.contains(document.activeElement)) return;
+  const vis = (el) => (el && el.offsetParent !== null ? el : null);
+  const pick = vis(root.querySelector('.hero.active')) || vis(root.querySelector('.class-opt.active')) || vis(root.querySelector('#auth-user'))
+    || vis(root.querySelector('#new-hero-btn')) || [...root.querySelectorAll('button, input')].find((e) => e.offsetParent !== null);
+  pick?.focus({ preventScroll: true });
+}
+function titlePad(name) {
+  const root = titleRoot(); if (!root) return;
+  ui.navRoot = root;
+  try {
+    if (vkbOpen()) return vkbPad(name);
+    const dirs = { padUp: 'up', padDown: 'down', padLeft: 'left', padRight: 'right' };
+    if (dirs[name]) { if (!root.contains(document.activeElement)) focusTitle(); else ui.padNav(dirs[name]); return; }
+    const a = document.activeElement;
+    if (name === 'attack') { // A
+      if (!root.contains(a)) { focusTitle(); return; }
+      if (a.tagName === 'INPUT') openVkb(a); else a.click();
+      setTimeout(focusTitle, 50);
+      return;
+    }
+    if (name === 'skill2') { // B: back out of the new-hero window
+      if (root.id === 'create-modal') { $('#create-modal').classList.add('hidden'); setTimeout(focusTitle, 0); }
+      return;
+    }
+    if (root.id === 'select' && name === 'skill0') { $('#new-hero-btn').click(); setTimeout(() => $('#hero-name').blur() || focusTitle(), 50); return; } // X
+    if (root.id === 'select' && name === 'skill1') { openVkb($('#join-code')); return; } // Y
+    if (root.id === 'auth' && (name === 'use' || name === 'skill3')) { const tabs = $$('#auth .tab'); (tabs.find((t) => !t.classList.contains('active')))?.click(); return; } // LB/RB
+  } finally { ui.navRoot = null; }
+}
+
+// On-screen keyboard
+let vkbTarget = null; let vkbShift = true;
+const VKB_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl\'', 'zxcvbnm-_.'];
+function renderVkb() {
+  const keys = VKB_ROWS.join('').split('').map((k) => {
+    const ch = vkbShift ? k.toUpperCase() : k;
+    return `<button type="button" data-k="${esc(ch)}">${esc(ch)}</button>`;
+  }).join('');
+  $('#vkb-keys').innerHTML = keys
+    + '<button type="button" class="wide" data-act="shift">⇧ Shift</button><button type="button" class="wider" data-act="space">Space</button><button type="button" class="wide" data-act="del">⌫</button><button type="button" class="wide done" data-act="done">Done</button>';
+  const v = vkbTarget.value;
+  $('#vkb-text').textContent = vkbTarget.type === 'password' ? '•'.repeat(v.length) : v;
+}
+function vkbType(k) {
+  const t = vkbTarget; const max = Number(t.maxLength) > 0 ? t.maxLength : 99;
+  if (k === 'del') t.value = t.value.slice(0, -1);
+  else if (k === 'space') { if (t.value.length < max) t.value += ' '; }
+  else if (t.value.length < max) t.value += t.id === 'join-code' ? k.toUpperCase() : k;
+  t.dispatchEvent(new Event('input', { bubbles: true }));
+  if (vkbShift && k.length === 1 && t.id === 'hero-name') vkbShift = false; // Capitalize the first letter only
+  const keep = document.activeElement?.dataset; renderVkb();
+  const again = keep?.k ? $(`#vkb-keys [data-k="${CSS.escape(vkbShift ? keep.k.toUpperCase() : keep.k.toLowerCase())}"]`) : keep?.act ? $(`#vkb-keys [data-act="${keep.act}"]`) : null;
+  again?.focus({ preventScroll: true });
+}
+function openVkb(input) {
+  vkbTarget = input; vkbShift = input.id === 'join-code' || input.value.length === 0;
+  const label = input.closest('label')?.querySelector('span')?.textContent || input.placeholder || 'Text';
+  $('#vkb-label').textContent = label;
+  renderVkb();
+  $('#vkb').classList.remove('hidden');
+  $('#vkb-keys button')?.focus({ preventScroll: true });
+}
+function closeVkb() {
+  $('#vkb').classList.add('hidden');
+  const t = vkbTarget; vkbTarget = null;
+  // Jump to the button that uses what was typed.
+  const next = { 'hero-name': '#create-hero-btn', 'join-code': '#join-btn', 'auth-user': '#auth-pass', 'auth-pass': '#auth-submit' }[t?.id];
+  (next ? $(next) : t)?.focus({ preventScroll: true });
+}
+function vkbPad(name) {
+  const dirs = { padUp: 'up', padDown: 'down', padLeft: 'left', padRight: 'right' };
+  if (dirs[name]) return ui.padNav(dirs[name]);
+  if (name === 'attack') { document.activeElement?.closest('#vkb') ? document.activeElement.click() : $('#vkb-keys button')?.focus(); return; }
+  if (name === 'skill0') return vkbType('del'); // X
+  if (name === 'skill1') return vkbType('space'); // Y
+  if (name === 'use') { vkbShift = !vkbShift; const f = document.activeElement?.dataset; renderVkb(); if (f?.k) $(`#vkb-keys [data-k="${CSS.escape(vkbShift ? f.k.toUpperCase() : f.k.toLowerCase())}"]`)?.focus(); return; } // LB
+  if (name === 'skill2' || name === 'menu') closeVkb(); // B / Start
+}
+$('#vkb-keys').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.k) vkbType(b.dataset.k);
+  else if (b.dataset.act === 'shift') { vkbShift = !vkbShift; renderVkb(); $('#vkb-keys [data-act="shift"]').focus(); }
+  else if (b.dataset.act === 'done') closeVkb();
+  else vkbType(b.dataset.act);
+});
+
+const NAME_A = ['Al', 'Bran', 'Cor', 'Dar', 'Ed', 'Gar', 'Hal', 'Is', 'Kael', 'Lor', 'Mor', 'Ro', 'Syl', 'Thal', 'Ul', 'Wen'];
+const NAME_B = ['dric', 'wyn', 'ric', 'ven', 'mund', 'reth', 'ian', 'ora', 'en', 'is', 'gar', 'wen', 'ard', 'mir'];
+$('#random-name-btn').addEventListener('click', () => {
+  const r = (a) => a[Math.floor(Math.random() * a.length)];
+  $('#hero-name').value = r(NAME_A) + r(NAME_B);
+  if (input.source === 'pad') $('#create-hero-btn').focus();
+});
 
 // ------------------------------------------------------------ loop
 let last = performance.now();

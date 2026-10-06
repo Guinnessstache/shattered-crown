@@ -396,7 +396,7 @@ export class UI {
   }
 
   // ------------------------------------------------------------ controller navigation in panels
-  openPanelEl() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').find((m) => m.id !== 'create-modal'); }
+  openPanelEl() { return this.navRoot || $$('.sheet:not(.hidden), .modal:not(.hidden)').find((m) => m.id !== 'create-modal'); }
   focusables(root) { return $$('button:not([disabled]), input, select', root).filter((e) => e.offsetParent !== null && !e.closest('.hidden')); }
   focusFirst(root) {
     if (this.source !== 'pad' || !root) return;

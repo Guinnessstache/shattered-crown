@@ -46,6 +46,7 @@
           <div id="google-btn"></div>
         </div>
         <p id="auth-error" class="error"></p>
+        <div class="pad-hints"><b>A</b> Select / type · <b>LB</b>/<b>RB</b> Sign in / Create account</div>
       </div>
     </div>
   </section>
@@ -76,6 +77,7 @@
             <button id="delete-hero-btn" class="btn small ghost danger" type="button">Delete hero</button>
           </div>
           <p id="select-error" class="error"></p>
+          <div class="pad-hints"><b>A</b> Select · <b>X</b> New hero · <b>Y</b> Join code</div>
         </div>
       </div>
     </div>
@@ -86,12 +88,22 @@
     <div class="panel">
       <h2>New hero</h2>
       <div id="class-list" class="class-list"></div>
-      <label class="field"><span>Name</span><input id="hero-name" maxlength="16" autocomplete="off" placeholder="e.g. Aldric" /></label>
+      <label class="field"><span>Name</span><span class="name-row"><input id="hero-name" maxlength="16" autocomplete="off" placeholder="e.g. Aldric" /><button id="random-name-btn" class="btn" type="button" title="Random name">🎲</button></span></label>
       <div class="row-end">
         <button class="btn ghost" data-close type="button">Cancel</button>
         <button id="create-hero-btn" class="btn gold" type="button">Create</button>
       </div>
       <p id="create-error" class="error"></p>
+      <div class="pad-hints"><b>A</b> Select / type · <b>B</b> Back</div>
+    </div>
+  </div>
+
+  <!-- On-screen keyboard for controllers -->
+  <div id="vkb" class="vkb hidden">
+    <div class="panel">
+      <div class="vkb-field"><span id="vkb-label"></span><div id="vkb-text" class="vkb-text"></div></div>
+      <div id="vkb-keys" class="vkb-keys"></div>
+      <div class="pad-hints" style="display:block"><b>A</b> Type · <b>X</b> Delete · <b>Y</b> Space · <b>LB</b> Shift · <b>Start</b> / <b>B</b> Done</div>
     </div>
   </div>
 
