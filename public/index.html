@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#0b0805" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Shattered Crown</title>
   <meta name="description" content="A co-op dungeon-crawling action RPG in your browser. Every floor is new." />
@@ -101,6 +102,7 @@
       <canvas id="minimap" width="180" height="180"></canvas>
       <div id="zone-name" class="zone-name"></div>
       <div class="top-buttons">
+        <button id="fs-btn" class="hbtn" title="Full screen">⛶</button>
         <button id="party-btn" class="hbtn" title="Party &amp; voice">👥<span id="party-code-badge"></span></button>
         <button id="mic-btn" class="hbtn" title="Voice chat (V)">🎙</button>
         <button id="inv-btn" class="hbtn" title="Character (I)">🎒<i id="pts-dot" class="dot hidden"></i></button>
@@ -220,6 +222,8 @@
     </div>
   </div>
 
+  <div id="rotate" class="rotate hidden"><div><div class="phone">📱</div><h2>Turn your phone sideways</h2><p>Shattered Crown plays in landscape.</p><button id="rotate-fs" class="btn gold" type="button">Go full screen</button></div></div>
+  <div id="ios-tip" class="ios-tip hidden"><span>For full screen on iPhone: tap <b>Share</b> → <b>Add to Home Screen</b>, then open the game from your home screen.</span><button id="ios-tip-x" class="btn small ghost" type="button">Got it</button></div>
   <div id="death" class="death hidden"><div><h1>You have fallen</h1><p id="death-text"></p></div></div>
   <div id="fade" class="fade"></div>
   <div id="tooltip" class="tooltip hidden"></div>

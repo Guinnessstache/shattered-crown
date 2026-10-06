@@ -311,3 +311,34 @@ body.touch-on .use-prompt { display: none; }
   .touch-right { transform: scale(.85); transform-origin: bottom right; }
   #minimap { width: 96px; height: 96px; }
 }
+
+/* phones: rotate prompt, iOS tip, landscape layout */
+.rotate { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; text-align: center; padding: 24px; background: radial-gradient(circle at 50% 40%, #2b1a0e, #0b0805 75%); }
+.rotate h2 { font-family: var(--display); color: var(--gold); margin: 10px 0 6px; }
+.rotate p { color: var(--muted); margin: 0 0 16px; }
+.rotate .phone { font-size: 64px; animation: turn 2s ease-in-out infinite; }
+@keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+.ios-tip { position: fixed; left: 50%; top: calc(10px + var(--safe-t)); transform: translateX(-50%); z-index: 65; width: min(520px, 92vw); display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--gold); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.ios-tip b { color: var(--gold); }
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  /* Vitals top-center, small; minimap and buttons top-right; controls own the bottom corners */
+  body.touch-on .bottom { top: calc(6px + var(--safe-t)); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 40vw); }
+  body.touch-on .vitals .bar { height: 14px; }
+  body.touch-on .vitals .bar span { font-size: 10px; line-height: 12px; }
+  body.touch-on .boss-bar { top: calc(46px + var(--safe-t)); width: 40vw; }
+  body.touch-on .target-bar { display: none !important; }
+  body.touch-on .chat { bottom: auto; top: calc(110px + var(--safe-t)); left: calc(10px + var(--safe-l)); width: 34vw; }
+  body.touch-on .chat-log { max-height: 80px; font-size: 12px; }
+  body.touch-on .messages { top: 22%; }
+  body.touch-on .center-msg { top: 26%; }
+  .top-right { flex-direction: row-reverse; align-items: flex-start; }
+  #minimap { width: 92px; height: 92px; }
+  .zone-name { display: none; }
+  .top-buttons { flex-direction: column; }
+  .hbtn { width: 36px; height: 36px; font-size: 16px; }
+  .pframe { width: 130px; padding: 4px 6px; }
+  .stick-zone { width: 42%; height: 75%; }
+  .stick { left: calc(110px + var(--safe-l)); top: calc(100% - 105px - var(--safe-b)); }
+  .touch-right { right: calc(14px + var(--safe-r)); bottom: calc(10px + var(--safe-b)); transform: scale(1.05); transform-origin: bottom right; }
+  .sheet-inner { max-height: calc(100dvh - 12px); }
+}

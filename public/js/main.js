@@ -215,8 +215,38 @@ $('#host-btn').addEventListener('click', () => play('host'));
 $('#join-btn').addEventListener('click', () => play('join', $('#join-code').value));
 $('#join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') play('join', e.target.value); });
 
+// ------------------------------------------------------------ phones: full screen + landscape
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+async function enterFullscreen() {
+  const el = document.documentElement;
+  try {
+    if (!fsElement()) {
+      if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+    await screen.orientation?.lock?.('landscape');
+  } catch { /* not allowed here (e.g. iPhone Safari) */ }
+  checkOrientation();
+}
+function exitFullscreen() { try { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); } catch { /* ignore */ } }
+function checkOrientation() {
+  const portrait = innerHeight > innerWidth;
+  $('#rotate').classList.toggle('hidden', !(coarse && game && portrait));
+  $('#fs-btn').classList.toggle('hidden', isIOS && !document.documentElement.webkitRequestFullscreen && !document.documentElement.requestFullscreen);
+}
+addEventListener('resize', checkOrientation);
+screen.orientation?.addEventListener?.('change', checkOrientation);
+document.addEventListener('fullscreenchange', checkOrientation);
+$('#fs-btn').addEventListener('click', () => (fsElement() ? exitFullscreen() : enterFullscreen()));
+$('#rotate-fs').addEventListener('click', () => enterFullscreen());
+$('#ios-tip-x').addEventListener('click', () => { $('#ios-tip').classList.add('hidden'); store.set('iosTip', '1'); });
+
 function play(mode, code) {
   if (!selected) return;
+  if (coarse) enterFullscreen(); // must happen in the tap that starts the game
+  if (coarse && isIOS && !standalone && store.get('iosTip') !== '1') $('#ios-tip').classList.remove('hidden');
   sfx.unlock();
   $('#select-error').textContent = '';
   $('#fade').classList.add('on');
@@ -229,11 +259,13 @@ function play(mode, code) {
     ui.setTouch(touchOn);
     world.targetDist = 15;
     if (!r.solo) ui.msg(`Party code: ${r.code} — share it so friends can join`, 'good');
+    checkOrientation();
   });
 }
 
 function endGame() {
   game?.destroy(); game = null;
+  checkOrientation();
   voice?.closeAll();
   ui.closePanels();
   $('#mic-btn').classList.remove('on'); $('#voice-toggle').checked = false;
