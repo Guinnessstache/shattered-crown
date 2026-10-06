@@ -1,0 +1,20 @@
+{
+  "models": {
+    "hero_knight": "hero_knight.glb",
+    "skeleton": "skeleton.glb",
+    "goblin": "goblin.glb",
+    "ogre": "ogre.glb"
+  },
+  "rigs": {
+    "hero_knight": "humanoid",
+    "skeleton": "humanoid",
+    "goblin": "humanoid",
+    "ogre": "humanoid"
+  },
+  "heights": {
+    "hero_knight": 1.95,
+    "skeleton": 1.9,
+    "goblin": 1.3,
+    "ogre": 4.2
+  }
+}

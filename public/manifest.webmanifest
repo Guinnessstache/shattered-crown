@@ -1,0 +1,10 @@
+{
+  "name": "Shattered Crown",
+  "short_name": "Shattered Crown",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0805",
+  "theme_color": "#0b0805",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b0805" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Shattered Crown</title>
+  <meta name="description" content="A co-op dungeon-crawling action RPG in your browser. Every floor is new." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔</text></svg>" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/vendor/fontsource/cinzel/600.css" />
+  <link rel="stylesheet" href="/vendor/fontsource/cinzel/800.css" />
+  <link rel="stylesheet" href="/vendor/fontsource/inter/400.css" />
+  <link rel="stylesheet" href="/vendor/fontsource/inter/600.css" />
+  <link rel="stylesheet" href="/vendor/fontsource/inter/700.css" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <div id="scene"></div>
+  <div id="labels"></div>
+
+  <div id="loading"><div class="crest">⚔</div><div id="loading-text">Forging the realm…</div></div>
+
+  <!-- Sign in -->
+  <section id="auth" class="screen hidden">
+    <div class="screen-inner narrow">
+      <h1 class="logo">Shattered <span>Crown</span><small>A co-op dungeon crawler</small></h1>
+      <div class="panel">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-auth="login" type="button">Sign in</button>
+          <button class="tab" data-auth="register" type="button">Create account</button>
+        </div>
+        <form id="auth-form" autocomplete="on">
+          <label class="field"><span>Username</span><input id="auth-user" name="username" autocomplete="username" maxlength="20" required /></label>
+          <label class="field"><span>Password</span><input id="auth-pass" name="password" type="password" autocomplete="current-password" maxlength="100" required /></label>
+          <button id="auth-submit" class="btn gold big" type="submit">Sign in</button>
+        </form>
+        <div id="google-wrap" class="hidden">
+          <div class="or"><span>or</span></div>
+          <div id="google-btn"></div>
+        </div>
+        <p id="auth-error" class="error"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hero select -->
+  <section id="select" class="screen hidden">
+    <div class="screen-inner">
+      <header class="select-head">
+        <h1 class="logo small">Shattered <span>Crown</span></h1>
+        <div class="who"><span id="who-name"></span> <button id="signout-btn" class="btn small ghost" type="button">Sign out</button></div>
+      </header>
+      <div class="select-grid">
+        <div class="panel heroes">
+          <h2>Your heroes</h2>
+          <div id="hero-list" class="hero-list"></div>
+          <button id="new-hero-btn" class="btn ghost big" type="button">+ New hero</button>
+        </div>
+        <div class="panel play">
+          <h2 id="play-title">Choose a hero</h2>
+          <div id="play-info" class="play-info"></div>
+          <div id="play-buttons" class="play-buttons hidden">
+            <button id="solo-btn" class="btn gold big" type="button">Play solo</button>
+            <button id="host-btn" class="btn big" type="button">Host co-op party</button>
+            <div class="join-row">
+              <input id="join-code" class="code-input" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+              <button id="join-btn" class="btn green" type="button">Join</button>
+            </div>
+            <button id="delete-hero-btn" class="btn small ghost danger" type="button">Delete hero</button>
+          </div>
+          <p id="select-error" class="error"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- New hero -->
+  <div id="create-modal" class="modal hidden">
+    <div class="panel">
+      <h2>New hero</h2>
+      <div id="class-list" class="class-list"></div>
+      <label class="field"><span>Name</span><input id="hero-name" maxlength="16" autocomplete="off" placeholder="e.g. Aldric" /></label>
+      <div class="row-end">
+        <button class="btn ghost" data-close type="button">Cancel</button>
+        <button id="create-hero-btn" class="btn gold" type="button">Create</button>
+      </div>
+      <p id="create-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- In-game HUD -->
+  <section id="hud" class="hidden">
+    <div id="party-frames" class="party-frames"></div>
+    <div class="top-right">
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="zone-name" class="zone-name"></div>
+      <div class="top-buttons">
+        <button id="party-btn" class="hbtn" title="Party &amp; voice">👥<span id="party-code-badge"></span></button>
+        <button id="mic-btn" class="hbtn" title="Voice chat (V)">🎙</button>
+        <button id="inv-btn" class="hbtn" title="Character (I)">🎒<i id="pts-dot" class="dot hidden"></i></button>
+        <button id="menu-btn" class="hbtn" title="Menu (Esc)">☰</button>
+      </div>
+    </div>
+
+    <div id="boss-bar" class="boss-bar hidden"><div class="name"></div><div class="bar"><i></i></div></div>
+    <div id="target-bar" class="target-bar hidden"><div class="name"></div><div class="bar"><i></i></div></div>
+
+    <div id="messages" class="messages"></div>
+    <div id="center-msg" class="center-msg"></div>
+    <div id="chat" class="chat"><div id="chat-log" class="chat-log"></div><input id="chat-input" class="hidden" maxlength="200" placeholder="Say something… (Enter)" /></div>
+
+    <div class="bottom">
+      <div class="vitals">
+        <div class="bar hp"><i></i><span></span></div>
+        <div class="bar mp"><i></i><span></span></div>
+        <div class="bar xp"><i></i><span></span></div>
+      </div>
+      <div id="skillbar" class="skillbar"></div>
+    </div>
+
+    <!-- touch controls -->
+    <div id="touch" class="touch hidden">
+      <div id="stick-zone" class="stick-zone"><div id="stick" class="stick"><i></i></div></div>
+      <div class="touch-right">
+        <button id="t-attack" class="tbtn attack">⚔</button>
+        <button class="tbtn sk s1" data-skill="0"></button>
+        <button class="tbtn sk s2" data-skill="1"></button>
+        <button class="tbtn sk s3" data-skill="2"></button>
+        <button class="tbtn sk s4" data-skill="3"></button>
+        <button id="t-hp" class="tbtn pot hp">❤<b></b></button>
+        <button id="t-mp" class="tbtn pot mp">✦<b></b></button>
+        <button id="t-use" class="tbtn use hidden">✋</button>
+      </div>
+    </div>
+    <button id="use-prompt" class="use-prompt hidden"></button>
+  </section>
+
+  <!-- Character / inventory -->
+  <div id="char-panel" class="sheet hidden">
+    <div class="sheet-inner panel">
+      <header>
+        <div class="tabs">
+          <button class="tab active" data-tab="gear" type="button">Gear</button>
+          <button class="tab" data-tab="stats" type="button">Stats</button>
+          <button class="tab" data-tab="skills" type="button">Skills</button>
+        </div>
+        <button class="btn small ghost" data-close type="button">✕</button>
+      </header>
+      <div class="tab-body" data-body="gear">
+        <div class="gear-wrap">
+          <div id="equip-grid" class="equip-grid"></div>
+          <div class="inv-side">
+            <div class="gold-line">Gold <b id="gold-amt">0</b> · <span id="pot-line"></span></div>
+            <div id="inv-grid" class="inv-grid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="tab-body hidden" data-body="stats"><div id="stats-body"></div></div>
+      <div class="tab-body hidden" data-body="skills"><div id="skills-body"></div></div>
+      <div id="item-detail" class="item-detail"></div>
+    </div>
+  </div>
+
+  <!-- Shop -->
+  <div id="shop-panel" class="sheet hidden">
+    <div class="sheet-inner panel">
+      <header><h2 id="shop-title">Shop</h2><button class="btn small ghost" data-close type="button">✕</button></header>
+      <div id="shop-potions" class="shop-potions"></div>
+      <div class="shop-cols">
+        <div><h3>For sale</h3><div id="shop-stock" class="shop-list"></div></div>
+        <div><h3>Sell from your pack <small>(gold <b id="shop-gold">0</b>)</small></h3><div id="shop-sell" class="inv-grid small"></div></div>
+      </div>
+      <div id="shop-detail" class="item-detail"></div>
+    </div>
+  </div>
+
+  <!-- Dungeon gate -->
+  <div id="gate-panel" class="modal hidden">
+    <div class="panel">
+      <h2>The Shattered Depths</h2>
+      <p class="muted">Every descent is a new labyrinth. Choose a floor you have reached.</p>
+      <div id="gate-floors" class="gate-floors"></div>
+      <div class="row-end"><button class="btn ghost" data-close type="button">Not yet</button></div>
+    </div>
+  </div>
+
+  <!-- Party -->
+  <div id="party-panel" class="modal hidden">
+    <div class="panel">
+      <h2>Party</h2>
+      <div id="party-code-line" class="party-code-line"></div>
+      <div id="party-list" class="party-list"></div>
+      <label class="chk"><input type="checkbox" id="voice-toggle" /> Voice chat (microphone)</label>
+      <label class="chk"><input type="checkbox" id="ptt-toggle" /> Push-to-talk (hold V)</label>
+      <div class="row-end"><button class="btn ghost" data-close type="button">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Menu -->
+  <div id="menu-panel" class="modal hidden">
+    <div class="panel">
+      <h2>Menu</h2>
+      <label class="field"><span>Graphics</span>
+        <select id="quality-select"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low (phones)</option></select>
+      </label>
+      <label class="field"><span>Sound effects</span><input id="sfx-vol" type="range" min="0" max="1" step="0.05" value="0.7" /></label>
+      <label class="chk"><input type="checkbox" id="touch-toggle" /> On-screen touch controls</label>
+      <label class="chk"><input type="checkbox" id="labels-toggle" checked /> Show item names on the ground</label>
+      <div class="controls-help" id="controls-help"></div>
+      <div class="row-end">
+        <button id="leave-btn" class="btn red" type="button">Save &amp; quit to heroes</button>
+        <button class="btn gold" data-close type="button">Resume</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="death" class="death hidden"><div><h1>You have fallen</h1><p id="death-text"></p></div></div>
+  <div id="fade" class="fade"></div>
+  <div id="tooltip" class="tooltip hidden"></div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

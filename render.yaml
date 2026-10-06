@@ -1,0 +1,29 @@
+# One-click deploy on Render: New > Blueprint > pick this repo.
+# Accounts and heroes are stored in Neon Postgres (DATABASE_URL).
+services:
+  - type: web
+    name: shattered-crown
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Neon Postgres connection string (paste it in Render when it asks)
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      # Optional: Google sign-in (see README). Leave unset to hide the Google button.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # Optional TURN relay for voice chat on strict networks:
+      # - key: TURN_URL
+      #   sync: false
+      # - key: TURN_USERNAME
+      #   sync: false
+      # - key: TURN_CREDENTIAL
+      #   sync: false
+
