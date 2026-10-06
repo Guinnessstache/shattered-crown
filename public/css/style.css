@@ -274,7 +274,8 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 /* touch controls */
-.touch { position: absolute; inset: 0; pointer-events: none; }
+/* The touch layer covers the screen but must let taps through to the HUD buttons underneath */
+#hud > .touch { position: absolute; inset: 0; pointer-events: none; }
 .touch > * { pointer-events: auto; }
 .stick-zone { position: absolute; left: 0; bottom: 0; width: 45%; height: 60%; }
 .stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(255,230,180,.35); background: radial-gradient(circle, rgba(0,0,0,.15), rgba(0,0,0,.35)); left: calc(100px + var(--safe-l)); top: calc(100% - 110px - var(--safe-b)); opacity: .7; }

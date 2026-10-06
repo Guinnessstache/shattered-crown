@@ -8,6 +8,7 @@ export const KEY_GLYPH = { attack: 'LMB', skill0: '1', skill1: '2', skill2: '3',
 export class Input {
   constructor(canvas, handlers) {
     this.h = handlers;
+    this.canvas = canvas;
     this.keys = new Set();
     this.move = { x: 0, y: 0 };
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, inside: false };
@@ -49,7 +50,7 @@ export class Input {
     canvas.addEventListener('mousemove', (e) => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.inside = true; if (this.source !== 'touch') this.setSource('keyboard'); });
     canvas.addEventListener('mouseleave', () => { this.mouse.inside = false; });
     canvas.addEventListener('mousedown', (e) => {
-      if (e.pointerType === 'touch') return;
+      if (e.sourceCapabilities?.firesTouchEvents || this.source === 'touch') return;
       this.setSource('keyboard');
       this.mouse.x = e.clientX; this.mouse.y = e.clientY;
       if (e.button === 0) { this.attackHeld = true; this.h.onAction('attack', true); }
@@ -96,12 +97,12 @@ export class Input {
 
     // Two-finger twist on the right side would be nice; a simple swipe on empty screen rotates the camera.
     let swipe = null;
-    root.addEventListener('pointerdown', (e) => {
-      if (e.target !== root && !e.target.classList.contains('touch')) return;
-      swipe = { id: e.pointerId, x: e.clientX };
-    });
-    root.addEventListener('pointermove', (e) => { if (swipe && e.pointerId === swipe.id) { this.h.onCamera((e.clientX - swipe.x) * 0.01, 0); swipe.x = e.clientX; } });
-    root.addEventListener('pointerup', () => { swipe = null; });
+    // Swiping empty screen (the 3D view) turns the camera.
+    const cv = this.canvas;
+    cv.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') swipe = { id: e.pointerId, x: e.clientX }; });
+    cv.addEventListener('pointermove', (e) => { if (swipe && e.pointerId === swipe.id) { this.h.onCamera((e.clientX - swipe.x) * 0.01, 0); swipe.x = e.clientX; } });
+    const endSwipe = (e) => { if (swipe && e.pointerId === swipe.id) swipe = null; };
+    cv.addEventListener('pointerup', endSwipe); cv.addEventListener('pointercancel', endSwipe);
 
     const hold = (el, act) => {
       el.addEventListener('pointerdown', (e) => {
