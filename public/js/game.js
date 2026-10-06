@@ -263,11 +263,18 @@ export class Game {
       if (src === 'pad') {
         if (name === 'padUp') ui.padNav('up'); else if (name === 'padDown') ui.padNav('down');
         else if (name === 'padLeft') ui.padNav('left'); else if (name === 'padRight') ui.padNav('right');
-        else if (name === 'attack') ui.padPress();
-        else if (name === 'skill2') ui.closePanels();
+        else if (name === 'attack') ui.padPress(); // A
+        else if (name === 'skill0') ui.padPrimary(); // X
+        else if (name === 'skill1') ui.padSecondary(); // Y
+        else if (name === 'skill2') ui.closePanels(); // B
+        else if (name === 'use') ui.padTab(-1); // LB
+        else if (name === 'skill3') ui.padTab(1); // RB
       }
       return;
     }
+    // D-pad up/down zooms the camera during play.
+    if (name === 'padUp' || name === 'padDown') { this.world.targetDist = Math.max(9, Math.min(24, this.world.targetDist + (name === 'padUp' ? -1.5 : 1.5))); return; }
+    if (name === 'padLeft' || name === 'padRight') return;
     if (this.dead) return;
     if (name === 'hp' || name === 'mp') { this.potion(name); return; }
     if (name === 'use') { this.interact(); return; }

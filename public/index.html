@@ -166,6 +166,7 @@
       <div class="tab-body hidden" data-body="stats"><div id="stats-body"></div></div>
       <div class="tab-body hidden" data-body="skills"><div id="skills-body"></div></div>
       <div id="item-detail" class="item-detail"></div>
+      <div class="pad-hints"><b>A</b> Select · <b>X</b> Equip / Unequip · <b>Y</b> Sell (at a shop) · <b>LB</b>/<b>RB</b> Tabs · <b>B</b> Close</div>
     </div>
   </div>
 
@@ -179,6 +180,7 @@
         <div><h3>Sell from your pack <small>(gold <b id="shop-gold">0</b>)</small></h3><div id="shop-sell" class="inv-grid small"></div></div>
       </div>
       <div id="shop-detail" class="item-detail"></div>
+      <div class="pad-hints"><b>A</b> Select · <b>X</b> Buy / Sell · <b>Y</b> Equip from pack · <b>B</b> Close</div>
     </div>
   </div>
 
@@ -188,6 +190,7 @@
       <h2>The Shattered Depths</h2>
       <p class="muted">Every descent is a new labyrinth. Choose a floor you have reached.</p>
       <div id="gate-floors" class="gate-floors"></div>
+      <div class="pad-hints"><b>A</b> Select · <b>B</b> Close</div>
       <div class="row-end"><button class="btn ghost" data-close type="button">Not yet</button></div>
     </div>
   </div>
@@ -200,6 +203,7 @@
       <div id="party-list" class="party-list"></div>
       <label class="chk"><input type="checkbox" id="voice-toggle" /> Voice chat (microphone)</label>
       <label class="chk"><input type="checkbox" id="ptt-toggle" /> Push-to-talk (hold V)</label>
+      <div class="pad-hints"><b>A</b> Select · <b>B</b> Close</div>
       <div class="row-end"><button class="btn ghost" data-close type="button">Close</button></div>
     </div>
   </div>
@@ -214,7 +218,10 @@
       <label class="field"><span>Sound effects</span><input id="sfx-vol" type="range" min="0" max="1" step="0.05" value="0.7" /></label>
       <label class="chk"><input type="checkbox" id="touch-toggle" /> On-screen touch controls</label>
       <label class="chk"><input type="checkbox" id="labels-toggle" checked /> Show item names on the ground</label>
+      <label class="chk"><input type="checkbox" id="invy-toggle" /> Invert camera up/down (controller right stick)</label>
+      <label class="chk"><input type="checkbox" id="invx-toggle" /> Invert camera left/right (controller right stick)</label>
       <div class="controls-help" id="controls-help"></div>
+      <div class="pad-hints"><b>A</b> Select · ◀ ▶ Change setting · <b>B</b> Close</div>
       <div class="row-end">
         <button id="leave-btn" class="btn red" type="button">Save &amp; quit to heroes</button>
         <button class="btn gold" data-close type="button">Resume</button>

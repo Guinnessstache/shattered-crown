@@ -16,6 +16,8 @@ export class Input {
     this.source = 'keyboard'; // keyboard | pad | touch
     this.camTurn = 0; this.camZoom = 0;
     this.enabled = true;
+    this.opts = { invertX: false, invertY: false };
+    this.navNext = 0; this.navDir = null;
     this.touchMove = { x: 0, y: 0 };
     this.padMove = { x: 0, y: 0 };
     this.prevPad = {};
@@ -132,18 +134,30 @@ export class Input {
     const dz = (v) => (Math.abs(v) < 0.18 ? 0 : (v - Math.sign(v) * 0.18) / 0.82);
     const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
     const mx = dz(lx); const my = dz(ly);
-    this.padMove = { x: mx, y: -my };
+    this.padMove = this.h.menuOpen?.() ? { x: 0, y: 0 } : { x: mx, y: -my };
     if (mx || my || Object.values(st).some(Boolean)) this.setSource('pad');
-    if (this.source === 'pad') {
-      if (dz(rx)) this.h.onCamera(dz(rx) * 0.045, 0);
-      if (dz(ry)) this.h.onCamera(0, dz(ry) * 0.25);
+    const menu = !!this.h.menuOpen?.();
+    // Right stick: X turns the camera, Y tilts it (either can be inverted in the menu).
+    if (this.source === 'pad' && !menu) {
+      const cx = dz(rx) * (this.opts.invertX ? -1 : 1); const cy = dz(ry) * (this.opts.invertY ? -1 : 1);
+      if (cx || cy) this.h.onCamera(cx * 0.045, 0, cy * 0.012);
     }
-    const map = { a: 'attack', x: 'skill0', y: 'skill1', b: 'skill2', rb: 'skill3', lt: 'hp', rt: 'mp', lb: 'use', menu: 'menu', view: 'inventory', up: 'padUp', down: 'padDown', left: 'padLeft', right: 'padRight', rs: 'map' };
+    // Menu navigation: D-pad or left stick, with auto-repeat while held.
+    const now = performance.now();
+    let dir = st.up ? 'Up' : st.down ? 'Down' : st.left ? 'Left' : st.right ? 'Right' : null;
+    if (!dir && menu) {
+      if (Math.abs(ly) > 0.55 && Math.abs(ly) >= Math.abs(lx)) dir = ly < 0 ? 'Up' : 'Down';
+      else if (Math.abs(lx) > 0.55) dir = lx < 0 ? 'Left' : 'Right';
+    }
+    if (dir !== this.navDir) { this.navDir = dir; if (dir) { this.h.onAction(`pad${dir}`, true, 'pad'); this.navNext = now + 380; } }
+    else if (dir && now >= this.navNext) { this.h.onAction(`pad${dir}`, true, 'pad'); this.navNext = now + 110; }
+    const map = { a: 'attack', x: 'skill0', y: 'skill1', b: 'skill2', rb: 'skill3', lt: 'hp', rt: 'mp', lb: 'use', menu: 'menu', view: 'inventory', rs: 'map' };
     for (const [btn, act] of Object.entries(map)) {
       if (st[btn] && !this.prevPad[btn]) this.h.onAction(act, true, 'pad');
       if (!st[btn] && this.prevPad[btn] && act === 'attack') this.padAttack = false;
     }
-    if (st.a) this.padAttack = true;
+    if (st.a && !this.h.menuOpen?.()) this.padAttack = true;
+    if (!st.a) this.padAttack = false;
     this.prevPad = st;
   }
 

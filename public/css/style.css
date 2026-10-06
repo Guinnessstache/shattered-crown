@@ -343,3 +343,10 @@ body.touch-on .use-prompt { display: none; }
   .touch-right { right: calc(14px + var(--safe-r)); bottom: calc(10px + var(--safe-b)); transform: scale(1.05); transform-origin: bottom right; }
   .sheet-inner { max-height: calc(100dvh - 12px); }
 }
+
+/* controller navigation */
+.pad-hints { display: none; margin-top: 12px; font-size: 12px; color: var(--muted); text-align: center; }
+.pad-hints b { display: inline-block; min-width: 20px; padding: 0 5px; border-radius: 10px; background: #000; border: 1px solid var(--line); color: var(--gold); font-size: 11px; }
+body.pad-on .pad-hints { display: block; }
+body.pad-on .sheet button:focus, body.pad-on .modal button:focus, body.pad-on .sheet select:focus, body.pad-on .modal select:focus, body.pad-on .modal input:focus, body.pad-on .sheet input:focus { outline: 3px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 14px rgba(227, 184, 102, .7); }
+body.pad-on .chk:focus-within { color: var(--gold); }

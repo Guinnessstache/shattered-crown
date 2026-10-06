@@ -64,6 +64,7 @@ export class UI {
 
   setSource(src) {
     this.source = src;
+    document.body.classList.toggle('pad-on', src === 'pad');
     const G = src === 'pad' ? PAD_GLYPH : KEY_GLYPH;
     this.skillEls.forEach((s, i) => { s.el.querySelector('.key').textContent = G[`skill${i}`]; });
     this.pot_hp.querySelector('.key').textContent = G.hp; this.pot_mp.querySelector('.key').textContent = G.mp;
@@ -200,7 +201,9 @@ export class UI {
     $$('#char-panel .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
     $$('#char-panel .tab-body').forEach((b) => b.classList.toggle('hidden', b.dataset.body !== name));
     this.curTab = name;
+    $('#item-detail').classList.toggle('hidden', name !== 'gear');
     this.renderChar();
+    if (this.source === 'pad') this.focusFirst($('#char-panel'));
   }
 
   setChar(char, derived, next) {
@@ -223,7 +226,8 @@ export class UI {
     return score(it) > score(cur) * 1.05;
   }
 
-  renderChar() {
+  renderChar() { this.keepFocus(() => this._renderChar()); }
+  _renderChar() {
     const ch = this.char; const d = this.derived;
     if (!ch) return;
     const tab = this.curTab || 'gear';
@@ -322,7 +326,8 @@ export class UI {
     this.focusFirst($('#shop-panel'));
   }
 
-  renderShop() {
+  renderShop() { this.keepFocus(() => this._renderShop()); }
+  _renderShop() {
     const d = this.shopData; const ch = this.char;
     $('#shop-title').textContent = d.npc === 'smith' ? 'Hilda the Smith — Arms & Armor' : 'Brannoc the Trader — Potions & Trinkets';
     $('#shop-gold').textContent = fmt(ch.gold);
@@ -366,19 +371,58 @@ export class UI {
 
   controlsHelp(src) {
     $('#controls-help').innerHTML = src === 'pad'
-      ? 'Left stick move · Right stick camera · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu'
+      ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> sell · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
       : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Left click</kbd>/<kbd>Space</kbd> attack · <kbd>Right click</kbd> Cleave · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> or middle-drag rotate camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
   }
 
   // ------------------------------------------------------------ controller navigation in panels
   openPanelEl() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').find((m) => m.id !== 'create-modal'); }
-  focusables(root) { return $$('button:not([disabled]), input, select', root).filter((e) => e.offsetParent !== null); }
-  focusFirst(root) { if (this.source !== 'pad') return; const f = this.focusables(root); (f.find((e) => e.classList.contains('slot') || e.classList.contains('shop-item')) || f[0])?.focus(); }
+  focusables(root) { return $$('button:not([disabled]), input, select', root).filter((e) => e.offsetParent !== null && !e.closest('.hidden')); }
+  focusFirst(root) {
+    if (this.source !== 'pad' || !root) return;
+    const f = this.focusables(root);
+    const el = f.find((e) => e.classList.contains('slot') || e.classList.contains('shop-item')) || f.find((e) => e.classList.contains('plus-btn')) || f.find((e) => !e.hasAttribute('data-close') && !e.closest('header')) || f[0];
+    el?.focus({ preventScroll: true }); el?.scrollIntoView?.({ block: 'nearest' });
+  }
+  // A stable selector for the focused control, so focus survives a panel redraw.
+  focusKey(el) {
+    if (!el || !this.openPanelEl()?.contains(el)) return null;
+    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab']) {
+      if (el.dataset[k] !== undefined) return { attr: k, val: el.dataset[k], n: el.dataset.n };
+    }
+    return el.id ? { id: el.id } : null;
+  }
+  restoreFocus(key) {
+    if (!key || this.source !== 'pad') return;
+    const root = this.openPanelEl(); if (!root) return;
+    let el = null;
+    if (key.id) el = root.querySelector(`#${key.id}`);
+    else {
+      const sel = (v) => `[data-${key.attr}="${v}"]${key.n ? `[data-n="${key.n}"]` : ''}`;
+      el = root.querySelector(sel(key.val));
+      // Bought/sold the last item in a list: move to the one before it.
+      if (!el && /^\d+$/.test(key.val)) for (let i = Number(key.val) - 1; i >= 0 && !el; i--) el = root.querySelector(sel(i));
+    }
+    if (el && !el.disabled) el.focus({ preventScroll: true }); else this.focusFirst(root);
+  }
+  keepFocus(fn) { const k = this.focusKey(document.activeElement); fn(); this.restoreFocus(k); }
+
   padNav(dir) {
     const root = this.openPanelEl(); if (!root) return false;
     const items = this.focusables(root);
     const cur = document.activeElement && items.includes(document.activeElement) ? document.activeElement : null;
-    if (!cur) { items[0]?.focus(); return true; }
+    if (!cur) { this.focusFirst(root); return true; }
+    // Left/right adjust sliders and dropdowns in the menu.
+    if ((dir === 'left' || dir === 'right') && cur.tagName === 'SELECT') {
+      const i = Math.max(0, Math.min(cur.options.length - 1, cur.selectedIndex + (dir === 'right' ? 1 : -1)));
+      if (i !== cur.selectedIndex) { cur.selectedIndex = i; cur.dispatchEvent(new Event('change', { bubbles: true })); }
+      return true;
+    }
+    if ((dir === 'left' || dir === 'right') && cur.type === 'range') {
+      if (dir === 'right') cur.stepUp(); else cur.stepDown();
+      cur.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    }
     const r0 = cur.getBoundingClientRect(); const c0 = { x: r0.left + r0.width / 2, y: r0.top + r0.height / 2 };
     let best = null; let bd = 1e9;
     for (const el of items) {
@@ -387,16 +431,61 @@ export class UI {
       const dx = c.x - c0.x; const dy = c.y - c0.y;
       const ok = dir === 'left' ? dx < -4 : dir === 'right' ? dx > 4 : dir === 'up' ? dy < -4 : dy > 4;
       if (!ok) continue;
-      const main = dir === 'left' || dir === 'right' ? Math.abs(dx) : Math.abs(dy);
-      const cross = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
-      const d = main + cross * 2.5;
+      const horiz = dir === 'left' || dir === 'right';
+      const main = horiz ? Math.abs(dx) : Math.abs(dy);
+      // Sideways distance counts only when the boxes don't line up at all.
+      const cross = horiz ? Math.max(0, r.top - r0.bottom, r0.top - r.bottom) : Math.max(0, r.left - r0.right, r0.left - r.right);
+      const d = main + cross * 2.5 + (horiz ? Math.abs(dy) : Math.abs(dx)) * 0.05;
       if (d < bd) { bd = d; best = el; }
     }
-    best?.focus();
-    best?.scrollIntoView?.({ block: 'nearest' });
+    if (best) { best.focus({ preventScroll: true }); best.scrollIntoView?.({ block: 'nearest' }); }
     return true;
   }
-  padPress() { const a = document.activeElement; if (a && this.openPanelEl()?.contains(a)) { a.click(); if (a.dataset.inv && this.sel?.inv === Number(a.dataset.inv) && this.lastPadInv === a.dataset.inv) this.h.inv({ op: 'equip', idx: Number(a.dataset.inv) }); this.lastPadInv = a.dataset.inv; return true; } return false; }
+
+  // A: press the focused control (select an item, press a button, tick a box).
+  padPress() {
+    const a = document.activeElement;
+    if (a && this.openPanelEl()?.contains(a)) { this.keepFocus(() => a.click()); return true; }
+    this.focusFirst(this.openPanelEl());
+    return false;
+  }
+
+  // X: the main action for the selected item: equip / unequip / buy / sell.
+  padPrimary() {
+    const root = this.openPanelEl(); if (!root) return;
+    const ch = this.char;
+    if (root.id === 'char-panel' && (this.curTab || 'gear') === 'gear') {
+      const k = this.focusKey(document.activeElement);
+      if (k?.attr === 'inv') this.sel = { inv: Number(k.val) };
+      if (k?.attr === 'eq') this.sel = { eq: k.val };
+      if (this.sel?.inv != null && ch.inv[this.sel.inv]) this.h.inv({ op: 'equip', idx: this.sel.inv });
+      else if (this.sel?.eq && ch.equip[this.sel.eq]) this.h.inv({ op: 'unequip', slot: this.sel.eq });
+    } else if (root.id === 'shop-panel') {
+      const k = this.focusKey(document.activeElement);
+      if (k?.attr === 'buy') this.shopSel = { buy: Number(k.val) };
+      if (k?.attr === 'sell') this.shopSel = { sell: Number(k.val) };
+      if (this.shopSel?.buy != null && this.shopData.stock[this.shopSel.buy]) { this.h.inv({ op: 'buy', i: this.shopSel.buy }); this.shopSel = null; }
+      else if (this.shopSel?.sell != null && ch.inv[this.shopSel.sell]) { this.h.inv({ op: 'sell', idx: this.shopSel.sell }); this.shopSel = null; }
+    } else this.padPress();
+  }
+
+  // Y: sell the selected pack item at a shop (or equip it from the shop's sell list).
+  padSecondary() {
+    const root = this.openPanelEl(); if (!root) return;
+    const k = this.focusKey(document.activeElement);
+    if (root.id === 'char-panel' && k?.attr === 'inv' && this.char.inv[Number(k.val)] && this.h.nearShop()) this.h.inv({ op: 'sell', idx: Number(k.val) });
+    if (root.id === 'shop-panel' && k?.attr === 'sell' && this.char.inv[Number(k.val)]) this.h.inv({ op: 'equip', idx: Number(k.val) });
+  }
+
+  // LB / RB: switch tabs on the character panel.
+  padTab(step) {
+    const root = this.openPanelEl();
+    if (root?.id !== 'char-panel') return;
+    const tabs = ['gear', 'stats', 'skills'];
+    const i = (tabs.indexOf(this.curTab || 'gear') + step + tabs.length) % tabs.length;
+    this.tab(tabs[i]);
+    this.focusFirst(root);
+  }
 }
 
 function confirmDestroy(it) { return window.confirm(`Destroy ${it.name}? This can't be undone.`); }

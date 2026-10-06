@@ -44,7 +44,8 @@ const input = new Input(world.renderer.domElement, {
     if (name === 'ptt' && !down) { voice?.pushToTalk(false); return; }
     if (game) game.action(name, down, src);
   },
-  onCamera: (dyaw, dzoom) => { world.yaw += dyaw; world.targetDist = Math.max(9, Math.min(24, world.targetDist + dzoom)); },
+  onCamera: (dyaw, dzoom, dpitch = 0) => { world.yaw += dyaw; world.targetDist = Math.max(9, Math.min(24, world.targetDist + dzoom)); world.pitch = Math.max(0.5, Math.min(1.3, world.pitch + dpitch)); },
+  menuOpen: () => ui.anyOpen(),
   onSource: (s) => { ui.setSource(s); ui.controlsHelp(s); if (s === 'touch' && !touchOn) setTouch(true); },
 });
 input.bindTouch($('#touch'));
@@ -59,6 +60,11 @@ $('#quality-select').addEventListener('change', (e) => { store.set('quality', e.
 $('#sfx-vol').value = sfx.vol;
 $('#sfx-vol').addEventListener('input', (e) => { sfx.setVolume(Number(e.target.value)); store.set('sfx', e.target.value); });
 $('#touch-toggle').addEventListener('change', (e) => setTouch(e.target.checked));
+for (const k of ['invertX', 'invertY']) {
+  const box = $(`#${k === 'invertX' ? 'invx' : 'invy'}-toggle`);
+  input.opts[k] = store.get(k, '0') === '1'; box.checked = input.opts[k];
+  box.addEventListener('change', (e) => { input.opts[k] = e.target.checked; store.set(k, e.target.checked ? '1' : '0'); });
+}
 $('#labels-toggle').checked = world.showLootLabels;
 $('#labels-toggle').addEventListener('change', (e) => { world.showLootLabels = e.target.checked; store.set('labels', e.target.checked ? '1' : '0'); });
 addEventListener('pointerdown', () => { sfx.unlock(); voice?.unlock(); }, { once: false });
