@@ -399,6 +399,34 @@ export function derive(ch, buffs = null) {
 // above the cap is scaled to what a cap-level item would roll. Skills and skill ranks are kept.
 // Synced heroes earn SYNC.xpBonus extra XP, so helping lower-level friends pays.
 export const SYNC = { margin: 2, xpBonus: 0.15 };
+
+// Buffs and debuffs shown with a countdown (on your HUD, and on a monster's health bar).
+export const STATUS = {
+  warcry: { name: 'War Cry', icon: '📯', good: true, desc: 'More damage and armor.' },
+  bloodlust: { name: 'Bloodlust', icon: '🩸', good: true, desc: 'Faster attacks and life steal.' },
+  ward: { name: 'Arcane Ward', icon: '🔮', good: true, desc: 'Absorbs damage.' },
+  rejuv: { name: 'Rejuvenation', icon: '✚', good: true, desc: 'Healing over time.' },
+  wolf: { name: 'Spirit Wolf', icon: '🐺', good: true, desc: 'Your wolf fights beside you.' },
+  poison: { name: 'Poisoned', icon: '☠', desc: 'Taking poison damage. Stacks.' },
+  burn: { name: 'Burning', icon: '🔥', desc: 'Taking fire damage.' },
+  slow: { name: 'Slowed', icon: '🐌', desc: 'Moving slower.' },
+  chill: { name: 'Chilled', icon: '❄', desc: 'Frozen and slowed.' },
+  stun: { name: 'Stunned', icon: '💫', desc: "Can't act." },
+};
+// Debuffs monsters put on you: spiders poison, imps set you alight, boss slams daze.
+export const MONSTER_DEBUFF = {
+  spider: { poison: { dur: 4, per: 0.12, max: 3 } },
+  spiderling: { poison: { dur: 3, per: 0.1, max: 3 } },
+  broodmother: { poison: { dur: 5, per: 0.08, max: 3 } },
+  imp: { burn: { dur: 3, per: 0.22 } },
+};
+// Bank: shared by every hero on an account. Extra tabs are bought with gold.
+export const BANK = { tabSize: 30, maxTabs: 4, tabCost: [0, 2500, 10000, 40000], maxGold: 1e9 };
+// Mail: letters between heroes, with up to 6 items and some gold attached.
+export const MAIL = { maxItems: 6, postage: 10, perItem: 10, subjectMax: 40, bodyMax: 500, keepDays: 30, inboxMax: 60, maxGold: 1e9 };
+export function postage(nItems) { return MAIL.postage + MAIL.perItem * nItems; }
+export const SLAM_DAZE = 2.5; // seconds slowed after a boss slam lands on you
+export const SLOW_MULT = 0.6;
 export function syncCapFor(floor) { return floor > 0 ? Math.max(1, Math.round(floor * 1.5)) + SYNC.margin : 0; }
 function scaleItem(it, cap) {
   const il = it.ilvl || 1;

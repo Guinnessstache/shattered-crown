@@ -114,7 +114,15 @@ export class Party {
     try { this.zone?.tick(); } catch (e) { console.error('zone tick', e); }
   }
 
-  async save(m) {
+  // Saves for one hero run one after another (with bank / mail writes in the same queue), so an
+  // older save can never land on top of a newer one.
+  save(m) { return this.commit(m, () => this.saveNow(m)); }
+  commit(m, fn) {
+    const run = (m.saveQ || Promise.resolve()).then(fn);
+    m.saveQ = run.catch(() => {});
+    return run;
+  }
+  async saveNow(m) {
     if (!m.dirty && m.savedOnce) return;
     m.dirty = false; m.savedOnce = true;
     m.char.playTime = (m.char.playTime || 0) + Math.round((Date.now() - (m.lastSaveAt || m.joinedAt)) / 1000);
@@ -208,7 +216,7 @@ export class Party {
         break;
       }
       case 'sell': {
-        if (!this.nearNpc(pid)) return 'Find a merchant to sell items';
+        if (!['merchant', 'smith', 'crafter', 'auctioneer'].includes(this.nearNpc(pid))) return 'Find a merchant to sell items';
         if (!validIdx(idx) || !inv[idx]) return 'Nothing there';
         ch.gold += inv[idx].value;
         inv[idx] = null;
@@ -339,6 +347,8 @@ export class Party {
     if (!m) return;
     if (npc === 'crafter') { this.emitTo(pid, 'crafter', {}); return; }
     if (npc === 'auctioneer') { this.emitTo(pid, 'auction', {}); return; }
+    if (npc === 'banker') { this.emitTo(pid, 'bank', {}); return; }
+    if (npc === 'mailbox') { this.emitTo(pid, 'mailbox', {}); return; }
     const stock = this.stockFor(m)[npc] || [];
     this.emitTo(pid, 'shop', { npc, stock: stock.map((s) => ({ ...s, price: s.value * 4 })), potions: npc === 'merchant' ? this.potionPrices(m.char) : null });
   }

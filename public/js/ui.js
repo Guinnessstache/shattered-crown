@@ -1,6 +1,9 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
 import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS, SYNC, classBlocks } from '/shared/rules.js';
 import { itemIcon, setIconClass } from './render/icons.js';
+import { StatusRow } from './status.js';
+import { BankUI } from './bank.js';
+import { MailUI } from './mail.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -41,6 +44,16 @@ export class UI {
     this.labelsLayer.addEventListener('click', (e) => { const id = e.target?.dataset?.id; if (id) this.h.pickup(id); });
     // spatial navigation for controllers inside panels
     this.focusIdx = 0;
+    this.bankUI = new BankUI(this, (d) => this.h.bank(d));
+    this.mailUI = new MailUI(this, (d) => this.h.mail(d));
+  }
+
+  openBank() { this.bankUI.open(); }
+  openMail() { this.mailUI.open(); }
+  setMailUnread(n) {
+    const b = $('#mail-badge');
+    b.classList.toggle('hidden', !(n > 0));
+    b.querySelector('b').textContent = n > 9 ? '9+' : String(n || '');
   }
 
   // ------------------------------------------------------------ HUD
@@ -166,9 +179,23 @@ export class UI {
     el.classList.remove('hidden'); $('#t-use').classList.remove('hidden');
   }
 
+  // Your buffs/debuffs (from the server's 'status' event), counted down every frame.
+  setStatus(list, t) { (this.myStatus ||= new StatusRow($('#my-status'))).set(list, t); }
+  statusTick(t) { this.myStatus?.tick(t); this.statusT = t; }
+  clearStatus() { this.myStatus?.clear(); }
+
+  // A monster's debuffs under the target / boss bar.
+  barDebuffs(el, v) {
+    const row = (el._st ||= new StatusRow(el.querySelector('.status-row'), { small: true }));
+    if (row.vid !== v?.id) { row.items.clear(); row.vid = v?.id; }
+    row.set(v?.db || [], this.statusT || 0);
+    row.tick(this.statusT || 0);
+  }
+
   target(v) {
     const el = $('#target-bar');
     if (!v || v.boss) { el.classList.add('hidden'); return; }
+    this.barDebuffs(el, v);
     el.classList.remove('hidden');
     const n = el.querySelector('.name'); n.textContent = `${v.e.name || ''}  ·  Lv ${v.e.level || ''}`; n.classList.toggle('elite', !!v.e.elite);
     el.querySelector('i').style.width = `${Math.max(0, (v.hp / v.hpMax) * 100)}%`;
@@ -178,6 +205,7 @@ export class UI {
     const el = $('#boss-bar');
     if (!v) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
+    this.barDebuffs(el, v);
     el.querySelector('.name').textContent = v.e.name;
     el.querySelector('i').style.width = `${Math.max(0, (v.hp / v.hpMax) * 100)}%`;
   }
@@ -253,7 +281,7 @@ export class UI {
   // ------------------------------------------------------------ panels
   anyOpen() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').some((m) => m.id !== 'create-modal'); }
   closePanels() {
-    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite', 'admin-panel']) $(`#${id}`).classList.add('hidden');
+    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'bank-panel', 'mail-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite', 'admin-panel']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
     // Let go of whatever control had focus inside the closed window.
@@ -291,6 +319,7 @@ export class UI {
     if (!$('#shop-panel').classList.contains('hidden') && this.shopData) this.renderShop();
     if (this.craftSel) this.renderCraft();
     if (this.ah) this.renderAh();
+    this.bankUI.render(); this.mailUI.render();
   }
 
   // Can't wear it: level too low, or the class doesn't take it (Berserker + shield).
@@ -655,7 +684,7 @@ export class UI {
   // A stable selector for the focused control, so focus survives a panel redraw.
   focusKey(el) {
     if (!el || !this.openPanelEl()?.contains(el)) return null;
-    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv', 'atab', 'ahrow', 'ahsell', 'ahcancel']) {
+    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv', 'atab', 'ahrow', 'ahsell', 'ahcancel', 'btab', 'bslot', 'bpack', 'mtab', 'mrow', 'matt', 'mgold', 'mcontact', 'mdetach', 'mpack']) {
       if (el.dataset[k] !== undefined) return { attr: k, val: el.dataset[k], n: el.dataset.n };
     }
     return el.id ? { id: el.id } : null;
@@ -747,6 +776,8 @@ export class UI {
   // A: press the focused control (select an item, press a button, tick a box).
   padPress() {
     const a = document.activeElement;
+    // A text box: type with the on-screen keyboard.
+    if (a && this.openPanelEl()?.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|number|search)$/.test(a.type || 'text'))) && this.h.vkb) { this.h.vkb(a); return true; }
     if (a && this.openPanelEl()?.contains(a)) { this.keepFocus(() => a.click()); return true; }
     this.focusFirst(this.openPanelEl());
     return false;
@@ -773,6 +804,9 @@ export class UI {
       if (this.craftSel.tab === 'craft') { if (k?.attr === 'recipe') this.h.inv({ op: 'craft', recipe: k.val, base: this.craftSel.base }); else this.padPress(); }
       else if (k?.attr === 'salv' && this.char.inv[Number(k.val)]) { this.h.inv({ op: 'salvage', idx: Number(k.val) }); this.salvSel = null; }
       else this.padPress();
+    } else if (root.id === 'bank-panel' || root.id === 'mail-panel') {
+      const k = this.focusKey(document.activeElement);
+      if (!(root.id === 'bank-panel' ? this.bankUI : this.mailUI).padPrimary(k)) this.padPress();
     } else if (root.id === 'ah-panel') {
       const k = this.focusKey(document.activeElement); const A = this.ah;
       if (k?.attr === 'ahrow') { A.sel = Number(k.val); this.ahBuy(); }
@@ -793,6 +827,8 @@ export class UI {
   padTab(step) {
     const root = this.openPanelEl();
     if (root?.id === 'craft-panel') { this.craftTab(this.craftSel.tab === 'craft' ? 'salvage' : 'craft'); return; }
+    if (root?.id === 'bank-panel') { this.bankUI.padTab(step); return; }
+    if (root?.id === 'mail-panel') { this.mailUI.padTab(step); return; }
     if (root?.id === 'ah-panel') { const t = ['browse', 'sell', 'mine']; this.ahTab(t[(t.indexOf(this.ah.tab) + step + 3) % 3]); return; }
     if (root?.id !== 'char-panel') return;
     const tabs = ['gear', 'stats', 'skills'];

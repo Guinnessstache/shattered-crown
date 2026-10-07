@@ -118,7 +118,8 @@ export function buildLevel(map, quality) {
     buildTownBorder(map, batch, quality);
     // NPC stalls
     for (const n of map.npcs) {
-      const s = n.type === 'smith' ? P.anvil() : P.stall(n.type === 'crafter' ? 0x5a2a7a : n.type === 'auctioneer' ? 0x2a6a3a : 0x2a5a8a);
+      if (n.type === 'mailbox') continue;
+      const s = n.type === 'smith' ? P.anvil() : P.stall(n.type === 'crafter' ? 0x5a2a7a : n.type === 'auctioneer' ? 0x2a6a3a : n.type === 'banker' ? 0x6a5420 : 0x2a5a8a);
       batch.addObject(P.place(s, n.x + Math.sin(n.rot) * (n.type === 'smith' ? 1.1 : -0.2), n.y + Math.cos(n.rot) * (n.type === 'smith' ? 1.1 : -0.2), n.rot + (n.type === 'smith' ? Math.PI / 2 : Math.PI)));
     }
   }

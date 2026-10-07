@@ -9,6 +9,8 @@ import { auctionAction, setOnlineLookup } from './auction.js';
 import { makeItem } from '../shared/rules.js';
 import { RNG } from '../shared/rng.js';
 import { duelAction } from './duel.js';
+import { bankAction } from './bank.js';
+import { mailAction, mailOnJoin, setMailOnlineLookup } from './mail.js';
 import { adminHandler } from './admin.js';
 import { loadSecret, hashPassword, checkPassword, signToken, verifyToken, validUsername, validPassword, verifyGoogleToken, rateLimited } from './auth.js';
 import { Party, Member, parties } from './party.js';
@@ -19,7 +21,8 @@ const root = path.join(__dirname, '..');
 
 export async function startServer({ port = Number(process.env.PORT) || 3000, dataDir = process.env.DATA_DIR || path.join(root, 'data') } = {}) {
   const db = await openDb({ dataDir });
-  setOnlineLookup((charId) => { for (const p of parties.values()) for (const m of p.members.values()) if (m.charId === charId) return m; return null; });
+  const findOnline = (charId) => { for (const p of parties.values()) for (const m of p.members.values()) if (m.charId === charId) return m; return null; };
+  setOnlineLookup(findOnline); setMailOnlineLookup(findOnline);
   const secret = loadSecret(dataDir);
   const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
   const THREE_DIR = [path.join(root, 'node_modules/three'), process.resourcesPath && path.join(process.resourcesPath, 'three')]
@@ -156,6 +159,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
         member.onlineKey = key;
         reply(cb, null, { pid: member.pid, code: party.code, solo: party.solo, char: member.char, next: xpToNext(member.char.level), derived: derive(member.char) });
         party.add(member);
+        mailOnJoin(db, member);
       } catch (e) { console.error(e); reply(cb, 'Server error'); }
     });
 
@@ -187,6 +191,13 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       if (!member?.party) return cb({ error: 'Not in a game' });
       try { cb(await auctionAction(db, member, d || {})); } catch (e) { console.error('auction', e); cb({ error: 'Server error' }); }
     });
+    for (const [ev, fn] of [['bank', bankAction], ['mail', mailAction]]) {
+      socket.on(ev, async (d, cb) => {
+        if (typeof cb !== 'function') return;
+        if (!member?.party) return cb({ error: 'Not in a game' });
+        try { cb(await fn(db, member, d || {})); } catch (e) { console.error(ev, e); cb({ error: 'Server error' }); }
+      });
+    }
     socket.on('duel', inParty((d) => duelAction(member.party, member, d)));
     socket.on('chat', inParty((d) => {
       const text = String(d.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -217,6 +228,8 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
           const i = member.char.inv.findIndex((x) => !x); if (i >= 0) member.char.inv[i] = it;
           party.sendChar(member.pid);
         }
+        if (d.cmd === 'debuff' && p) { const z = party.zone; if (d.slow) { p.slowUntil = z.time + Number(d.slow); } else z.debuffPlayer(p, String(d.type || 'spider'), Number(d.dmg) || 4); }
+        if (d.cmd === 'mdebuff') { const z = party.zone; for (const e of z.ents.values()) if (e.k === 'm' && e.state !== 'dead') { e.stunUntil = z.time + 3; e.poison = { stacks: 3, per: 0, until: z.time + 6, by: member.pid }; e.chillUntil = e.slowUntil = z.time + 4; } }
         if (d.cmd === 'killboss' && p) { const z = party.zone; for (const e of z.ents.values()) if (e.k === 'm' && e.boss && e.state !== 'dead') { p.x = e.x + 1.5; p.y = e.y; member.socket.emit('correct', { x: p.x, y: p.y }); z.killMonster(e, p); } }
         return null;
       }));

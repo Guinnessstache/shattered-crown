@@ -4,7 +4,7 @@
 import { buildMap, moveCircle, lineOfSight, distanceField, toTile, TILE, isBossFloor } from '../shared/map.js';
 import { RNG, hashSeed } from '../shared/rng.js';
 import { DUEL, settleDuel } from './duel.js';
-import { MONSTERS, SKILLS, CLASSES, SYNC, syncCapFor, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
+import { MONSTERS, SKILLS, CLASSES, SYNC, syncCapFor, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY, MONSTER_DEBUFF, SLAM_DAZE, SLOW_MULT } from '../shared/rules.js';
 
 const TICK = 1 / 20;
 const PLAYER_R = 0.45;
@@ -186,7 +186,7 @@ export class Zone {
     const x = Number(d?.x); const y = Number(d?.y); const rot = Number(d?.rot);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     const dt = Math.max(0.05, this.time - p.lastPosAt);
-    const speed = p.stats.moveSpeed * (p.slowUntil > this.time ? 0.6 : 1);
+    const speed = p.stats.moveSpeed * (p.slowUntil > this.time ? SLOW_MULT : 1);
     const max = speed * dt * 1.35 + 0.6;
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist > max || !this.map.walkableAt(x, y)) {
@@ -259,7 +259,7 @@ export class Zone {
       }
     }
     if (id === 'warcry') {
-      const buff = { dmg: sk.dmg(rank), armor: sk.armor(rank), until: this.time + sk.dur };
+      const buff = { dmg: sk.dmg(rank), armor: sk.armor(rank), at: this.time, until: this.time + sk.dur };
       for (const q of this.players.values()) {
         if (q.dead || Math.hypot(q.x - p.x, q.y - p.y) > sk.radius) continue;
         q.buffs.warcry = buff;
@@ -307,7 +307,7 @@ export class Zone {
         }
         break;
       case 'bloodlust':
-        p.buffs.bloodlust = { atkSpd: sk.atkSpd(rank), lifeSteal: sk.lifeSteal(rank), until: this.time + sk.dur };
+        p.buffs.bloodlust = { atkSpd: sk.atkSpd(rank), lifeSteal: sk.lifeSteal(rank), at: this.time, until: this.time + sk.dur };
         p.stats = p.member.derived(p.buffs);
         this.party.emitTo(p.pid, 'buff', { id: 'bloodlust', dur: sk.dur });
         this.events.push({ t: 'fx', k: 'bloodlust', id: p.id });
@@ -332,7 +332,7 @@ export class Zone {
         const absorb = sk.absorb(rank, p.stats.spi);
         for (const q of this.players.values()) {
           if (q.dead || Math.hypot(q.x - p.x, q.y - p.y) > sk.radius) continue;
-          q.buffs.ward = { hp: absorb, until: this.time + sk.dur };
+          q.buffs.ward = { hp: absorb, max: absorb, at: this.time, until: this.time + sk.dur };
           this.party.emitTo(q.pid, 'buff', { id: 'ward', dur: sk.dur, hp: absorb });
           this.events.push({ t: 'fx', k: 'ward', id: q.id, on: 1 });
         }
@@ -353,7 +353,7 @@ export class Zone {
       case 'wolf': {
         for (const e of [...this.ents.values()]) if (e.k === 'w' && e.by === p.pid) this.delEnt(e.id);
         const at = moveCircle(this.map, p.x, p.y, fx * 1.5, fy * 1.5, 0.4);
-        this.addEnt({ id: eid('w'), k: 'w', by: p.pid, name: `${p.name}'s Wolf`, x: at.x, y: at.y, rot: p.rot, r: 0.4, until: this.time + sk.dur, mult: sk.mult(rank), target: null, atkAt: 0, speed: 6.6 });
+        this.addEnt({ id: eid('w'), k: 'w', by: p.pid, name: `${p.name}'s Wolf`, x: at.x, y: at.y, rot: p.rot, r: 0.4, at: this.time, until: this.time + sk.dur, mult: sk.mult(rank), target: null, atkAt: 0, speed: 6.6 });
         this.events.push({ t: 'fx', k: 'summon', x: r1(at.x), y: r1(at.y) });
         break;
       }
@@ -361,7 +361,7 @@ export class Zone {
         for (const q of this.players.values()) {
           if (q.dead || Math.hypot(q.x - p.x, q.y - p.y) > sk.radius) continue;
           q.hp = Math.min(q.stats.hpMax, q.hp + q.stats.hpMax * 0.1);
-          q.hot = { perSec: (q.stats.hpMax * sk.hot(rank)) / sk.dur, until: this.time + sk.dur };
+          q.hot = { perSec: (q.stats.hpMax * sk.hot(rank)) / sk.dur, at: this.time, until: this.time + sk.dur };
           this.events.push({ t: 'fx', k: 'heal', id: q.id });
         }
         this.events.push({ t: 'fx', k: 'rejuv', x: r1(p.x), y: r1(p.y), r: sk.radius });
@@ -511,6 +511,11 @@ export class Zone {
       if (m.burn) { if (m.burn.until <= now) m.burn = null; else this.rawDamage(this.players.get(m.burn.by), m, m.burn.dps * 0.5, 'fire'); }
       if (m.state === 'dead') continue;
       if (m.poison) { if (m.poison.until <= now) m.poison = null; else this.rawDamage(this.players.get(m.poison.by), m, m.poison.per * m.poison.stacks * 0.5, 'poison'); }
+    }
+    for (const p of this.players.values()) {
+      if (p.dead) continue;
+      if (p.burn) { if (p.burn.until <= now) p.burn = null; else this.dotPlayer(p, p.burn.dps * 0.5, 'fire'); }
+      if (p.poison && !p.dead) { if (p.poison.until <= now) p.poison = null; else this.dotPlayer(p, p.poison.per * p.poison.stacks * 0.5, 'poison'); }
     }
   }
 
@@ -739,7 +744,7 @@ export class Zone {
     const s = p.stats;
     if (s.block && this.rng.chance(s.block / 100)) {
       this.events.push({ t: 'dmg', id: p.id, v: 0, b: 1 });
-      return;
+      return false;
     }
     const lvl = src?.level || Math.max(1, this.spec.floor);
     let dmg = Math.max(1, Math.round(amount * (1 - armorReduction(s.armor, lvl))));
@@ -748,7 +753,7 @@ export class Zone {
       const soak = Math.min(ward.hp, dmg);
       ward.hp -= soak; dmg -= soak;
       if (ward.hp <= 0) { delete p.buffs.ward; this.events.push({ t: 'fx', k: 'ward', id: p.id, on: 0 }); }
-      if (dmg <= 0) { this.events.push({ t: 'dmg', id: p.id, v: 0, w: 1 }); return; }
+      if (dmg <= 0) { this.events.push({ t: 'dmg', id: p.id, v: 0, w: 1 }); return true; }
     }
     p.hp -= dmg;
     const D = this.duel;
@@ -756,14 +761,42 @@ export class Zone {
       p.hp = 1;
       this.events.push({ t: 'dmg', id: p.id, v: dmg, hp: 1 });
       this.endDuel(D.a === p.pid ? D.b : D.a, 'ko');
-      return;
+      return true;
     }
     this.events.push({ t: 'dmg', id: p.id, v: dmg, hp: Math.max(0, Math.ceil(p.hp)) });
+    if (p.hp <= 0) this.killPlayer(p);
+    return true;
+  }
+
+  // Poison / burn from a monster's hit (see MONSTER_DEBUFF).
+  debuffPlayer(p, type, dmg) {
+    const d = MONSTER_DEBUFF[type];
+    if (!d || p.dead) return;
+    const now = this.time;
+    if (d.poison) {
+      const stacks = p.poison && p.poison.until > now ? Math.min(d.poison.max, p.poison.stacks + 1) : 1;
+      p.poison = { stacks, per: Math.max(1, dmg * d.poison.per), at: now, until: now + d.poison.dur };
+    }
+    if (d.burn) p.burn = { dps: Math.max(1, dmg * d.burn.per), at: now, until: now + d.burn.dur };
+  }
+
+  // Damage over time on a player: skips armor and block, the ward still soaks it.
+  dotPlayer(p, amount, el) {
+    if (p.dead) return;
+    let v = Math.max(1, Math.round(amount));
+    const ward = p.buffs.ward;
+    if (ward && ward.hp > 0) { const soak = Math.min(ward.hp, v); ward.hp -= soak; v -= soak; if (ward.hp <= 0) { delete p.buffs.ward; this.events.push({ t: 'fx', k: 'ward', id: p.id, on: 0 }); } }
+    if (v <= 0) return;
+    const D = this.duel;
+    if (D?.state === 'fight' && (D.a === p.pid || D.b === p.pid) && p.hp - v <= 0) v = Math.max(0, Math.ceil(p.hp) - 1);
+    p.hp -= v;
+    this.events.push({ t: 'dmg', id: p.id, v, hp: Math.max(0, Math.ceil(p.hp)), el, dot: 1 });
     if (p.hp <= 0) this.killPlayer(p);
   }
 
   killPlayer(p) {
     p.dead = true; p.hp = 0; p.respawnAt = this.time + RESPAWN_S;
+    p.poison = null; p.burn = null; p.slowUntil = 0; p.hot = null;
     const ch = p.member.char;
     const lost = Math.floor(ch.gold * 0.1);
     ch.gold -= lost; ch.deaths = (ch.deaths || 0) + 1;
@@ -784,7 +817,7 @@ export class Zone {
       const tx = t.x + (t.vx || 0) * lead; const ty = t.y + (t.vy || 0) * lead;
       const a = Math.atan2(tx - m.x, ty - m.y);
       m.rot = a;
-      this.addEnt({ id: eid('x'), k: 'x', kind: st.ranged.kind, x: m.x + Math.sin(a) * 0.6, y: m.y + Math.cos(a) * 0.6, vx: Math.sin(a) * st.ranged.speed, vy: Math.cos(a) * st.ranged.speed, dmg: m.dmg, level: m.level, life: 1.6 });
+      this.addEnt({ id: eid('x'), k: 'x', kind: st.ranged.kind, x: m.x + Math.sin(a) * 0.6, y: m.y + Math.cos(a) * 0.6, vx: Math.sin(a) * st.ranged.speed, vy: Math.cos(a) * st.ranged.speed, dmg: m.dmg, level: m.level, src: m.type, life: 1.6 });
       return;
     }
     const half = ((st.arc || 90) / 2) * Math.PI / 180;
@@ -794,7 +827,7 @@ export class Zone {
       if (dist > st.range + p.r + 0.35) continue;
       const ang = Math.atan2(p.x - m.x, p.y - m.y);
       if (dist > p.r + m.r + 0.3 && Math.abs(angDiff(ang, m.rot)) > half) continue;
-      this.hurtPlayer(p, m.dmg, m);
+      if (this.hurtPlayer(p, m.dmg, m)) this.debuffPlayer(p, m.type, m.dmg);
       if (p.stats.thorns && !p.dead) this.rawDamage(p, m, p.stats.thorns, 'thorns');
       if (!m.boss) break; // regular monsters hit one target
     }
@@ -852,7 +885,10 @@ export class Zone {
     if (m.state === 'slam') {
       m.t -= dt;
       if (m.t <= 0) {
-        for (const p of this.players.values()) if (!p.dead && Math.hypot(p.x - m.x, p.y - m.y) <= st.slam.radius + p.r) this.hurtPlayer(p, m.dmg * st.slam.mult, m);
+        for (const p of this.players.values()) {
+          if (p.dead || Math.hypot(p.x - m.x, p.y - m.y) > st.slam.radius + p.r) continue;
+          if (this.hurtPlayer(p, m.dmg * st.slam.mult, m) && !p.dead) { p.slowAt = this.time; p.slowUntil = this.time + SLAM_DAZE; }
+        }
         this.events.push({ t: 'fx', k: 'slam', x: r1(m.x), y: r1(m.y), r: st.slam.radius });
         m.state = 'recover'; m.t = 0.9;
       }
@@ -941,7 +977,7 @@ export class Zone {
       else {
         for (const p of this.players.values()) {
           if (p.dead) continue;
-          if (Math.hypot(p.x - nx, p.y - ny) <= p.r + 0.3) { this.hurtPlayer(p, e.dmg, e); hit = true; break; }
+          if (Math.hypot(p.x - nx, p.y - ny) <= p.r + 0.3) { if (this.hurtPlayer(p, e.dmg, e)) this.debuffPlayer(p, e.src, e.dmg); hit = true; break; }
         }
       }
       e.x = nx; e.y = ny;
@@ -1095,6 +1131,34 @@ export class Zone {
     if (this.tickN % this.snapEvery === 0) this.sendSnap();
   }
 
+  // A monster's debuffs for its health bar: [id, tenths of a second left, stacks, ...] or null.
+  monsterDebuffs(e) {
+    const now = this.time; const out = [];
+    const add = (id, until, n = 0) => { if (until > now) out.push(id, Math.ceil((until - now) * 10), n); };
+    add('stun', e.stunUntil);
+    if (e.chillUntil > now) add('chill', Math.max(e.chillUntil, e.slowUntil || 0)); else add('slow', e.slowUntil);
+    if (e.burn) add('burn', e.burn.until);
+    if (e.poison) add('poison', e.poison.until, e.poison.stacks);
+    return out.length ? out : null;
+  }
+
+  // Your own buffs and debuffs, sent to you whenever one starts, ends or changes.
+  sendStatus(p) {
+    const now = this.time; const out = [];
+    const add = (id, b, n = 0) => { if (b && b.until > now) out.push([id, Math.round((b.until - now) * 10) / 10, n]); };
+    add('warcry', p.buffs.warcry); add('bloodlust', p.buffs.bloodlust);
+    add('ward', p.buffs.ward, p.buffs.ward ? Math.ceil(p.buffs.ward.hp) : 0);
+    add('rejuv', p.hot);
+    for (const e of this.ents.values()) if (e.k === 'w' && e.by === p.pid) add('wolf', e);
+    add('poison', p.poison, p.poison?.stacks || 0); add('burn', p.burn);
+    if (p.slowUntil > now) add('slow', { until: p.slowUntil });
+    // Only send when something new happened: a status appeared, ended, was refreshed or its number changed.
+    const key = out.map(([id, left, n]) => `${id}:${n}:${Math.round(now + left)}`).join(',');
+    if (key === p.statusKey) return;
+    p.statusKey = key;
+    this.party.emitTo(p.pid, 'status', out);
+  }
+
   sendSnap() {
     const ps = [];
     for (const p of this.players.values()) ps.push([p.id, r2(p.x), r2(p.y), r2(p.rot), Math.ceil(p.hp), p.stats.hpMax, Math.floor(p.mp), p.stats.mpMax, p.dead ? 1 : 0]);
@@ -1106,8 +1170,10 @@ export class Zone {
       if (e.state === 'idle' && !players.some((p) => Math.hypot(p.x - e.x, p.y - e.y) < 50)) continue;
       const st = e.state === 'windup' || e.state === 'slam' ? 2 : e.stunUntil > this.time ? 3 : e.state === 'idle' ? 0 : 1;
       const fl = (e.burn ? 1 : 0) | (e.chillUntil > this.time ? 2 : 0) | (e.poison ? 4 : 0);
-      ms.push([e.id, r1(e.x), r1(e.y), r2(e.rot), Math.max(0, Math.round(e.hp)), st, fl]);
+      const db = this.monsterDebuffs(e);
+      ms.push(db ? [e.id, r1(e.x), r1(e.y), r2(e.rot), Math.max(0, Math.round(e.hp)), st, fl, db] : [e.id, r1(e.x), r1(e.y), r2(e.rot), Math.max(0, Math.round(e.hp)), st, fl]);
     }
+    for (const p of this.players.values()) this.sendStatus(p);
     const ev = this.events; this.events = [];
     this.party.broadcast('snap', { t: r2(this.time), p: ps, m: ms, ev });
   }

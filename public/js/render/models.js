@@ -344,7 +344,7 @@ export function buildOgre() {
 export function buildMerchant(kind = 'merchant') {
   return humanoid({
     dress(p, d) {
-      const robe = common('cloth', { color: kind === 'smith' ? 0x4a3a2a : kind === 'crafter' ? 0x5a2a7a : kind === 'auctioneer' ? 0x2a5a3a : 0x2a4a7a });
+      const robe = common('cloth', { color: kind === 'smith' ? 0x4a3a2a : kind === 'crafter' ? 0x5a2a7a : kind === 'auctioneer' ? 0x2a5a3a : kind === 'banker' ? 0x23222e : 0x2a4a7a });
       const skin = flat(0xd8a888, { rough: 0.7 });
       p.torso.add(M(G.cyl(0.22, 0.3, 0.75, 9), robe, 0, 0.25, 0));
       p.hips.add(M(G.cyl(0.3, 0.36, 0.9, 9), robe, 0, -0.42, 0));
@@ -370,6 +370,17 @@ export function buildMerchant(kind = 'merchant') {
         const fe = M(G.cone(0.03, 0.32, 5), flat(0xc83a3a), 0.12, 0.42, -0.04); fe.rotation.z = -0.5; p.head.add(fe);
         p.hips.add(M(G.sph(0.08, 8, 6), common('leather', { color: 0x6a4a1a }), 0.3, -0.1, 0.1));
         p.handR.add(M(G.cyl(0.04, 0.04, 0.012, 10), gold, 0, -0.05, 0.03));
+      } else if (kind === 'banker') {
+        // dark coat with a gold chain, spectacles, a tall hat and a key ring
+        const gold = common('gold', { color: 0xd8b04a });
+        for (const sx of [-1, 1]) { const ch = M(G.cyl(0.012, 0.012, 0.42, 5), gold, sx * 0.1, 0.22, 0.23); ch.rotation.z = sx * 0.5; p.torso.add(ch); }
+        p.torso.add(M(G.sph(0.035, 8, 6), gold, 0, 0.05, 0.25));
+        for (const sx of [-0.05, 0.05]) p.head.add(M(G.cyl(0.03, 0.03, 0.01, 10), glow(0xeaf4ff, 0.25), sx, 0.17, 0.12).rotateX(Math.PI / 2));
+        p.head.add(M(G.cyl(0.13, 0.13, 0.26, 12), common('cloth', { color: 0x15141c }), 0, 0.38, 0));
+        p.head.add(M(G.cyl(0.2, 0.2, 0.02, 14), common('cloth', { color: 0x15141c }), 0, 0.26, 0));
+        p.head.add(M(G.cyl(0.135, 0.135, 0.04, 12), gold, 0, 0.29, 0));
+        const ring = M(new THREE.TorusGeometry(0.06, 0.008, 6, 14), gold, 0, -0.06, 0.03); p.handR.add(ring);
+        p.handR.add(M(G.box(0.015, 0.08, 0.01), gold, 0.04, -0.12, 0.03));
       } else {
         const hat = M(G.cone(0.2, 0.35, 8), robe, 0, 0.42, 0); p.head.add(hat);
         p.head.add(M(G.cyl(0.26, 0.26, 0.03, 10), robe, 0, 0.27, 0));
@@ -377,6 +388,27 @@ export function buildMerchant(kind = 'merchant') {
       for (const j of ['legL', 'legR', 'shinL', 'shinR']) p[j].visible = false;
     },
   });
+}
+
+// The town mailbox: a painted post box on a stone footing (not a character).
+export function buildMailbox() {
+  const root = new THREE.Group();
+  const red = flat(0x9a2a22, { rough: 0.5, metal: 0.15 });
+  const iron = common('steel', { color: 0x2a2a2e, metal: 0.7, rough: 0.5 });
+  const gold = common('gold', { color: 0xd8b04a });
+  root.add(M(G.box(0.8, 0.12, 0.8), flat(0x7a746a, { rough: 0.95 }), 0, 0.06, 0));
+  const body = M(G.cyl(0.32, 0.34, 1.15, 16), red, 0, 0.7, 0); root.add(body);
+  const cap = M(G.sph(0.34, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), red, 0, 1.27, 0); root.add(cap);
+  root.add(M(G.cyl(0.36, 0.36, 0.06, 16), iron, 0, 1.27, 0));
+  root.add(M(G.cyl(0.36, 0.36, 0.05, 16), iron, 0, 0.16, 0));
+  const slot = M(G.box(0.3, 0.05, 0.06), iron, 0, 1.1, 0.31); root.add(slot);
+  root.add(M(G.box(0.36, 0.035, 0.03), gold, 0, 1.16, 0.33));
+  const plate = M(G.box(0.22, 0.14, 0.02), gold, 0, 0.82, 0.335); root.add(plate);
+  root.add(M(G.box(0.14, 0.03, 0.025), flat(0x3a2a14), 0, 0.82, 0.35));
+  const door = M(G.box(0.3, 0.36, 0.03), red, 0, 0.45, 0.33); root.add(door);
+  root.add(M(G.sph(0.025, 8, 6), gold, 0.1, 0.45, 0.355));
+  root.userData.rig = 'prop'; root.userData.height = 1.6;
+  return root;
 }
 
 // ---------------------------------------------------------------- creatures

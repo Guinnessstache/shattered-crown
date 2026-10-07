@@ -117,6 +117,7 @@
         <button id="fs-btn" class="hbtn" title="Full screen">⛶</button>
         <button id="party-btn" class="hbtn" title="Party &amp; voice">👥<span id="party-code-badge"></span></button>
         <button id="mic-btn" class="hbtn" title="Voice chat (V)">🎙</button>
+        <span id="mail-badge" class="hbtn mail-badge hidden" title="Unread letters — visit the mailbox in town">✉<b></b></span>
         <button id="inv-btn" class="hbtn" title="Character (I)">🎒<i id="pts-dot" class="dot hidden"></i></button>
         <button id="menu-btn" class="hbtn" title="Menu (Esc)">☰</button>
       </div>
@@ -127,14 +128,15 @@
       <div class="pot">⚔<span></span></div>
       <div class="side b"><b></b><div class="bar"><i></i></div></div>
     </div>
-    <div id="boss-bar" class="boss-bar hidden"><div class="name"></div><div class="bar"><i></i></div></div>
-    <div id="target-bar" class="target-bar hidden"><div class="name"></div><div class="bar"><i></i></div></div>
+    <div id="boss-bar" class="boss-bar hidden"><div class="name"></div><div class="bar"><i></i></div><div class="status-row small hidden"></div></div>
+    <div id="target-bar" class="target-bar hidden"><div class="name"></div><div class="bar"><i></i></div><div class="status-row small hidden"></div></div>
 
     <div id="messages" class="messages"></div>
     <div id="center-msg" class="center-msg"></div>
     <div id="chat" class="chat"><div id="chat-log" class="chat-log"></div><input id="chat-input" class="hidden" maxlength="200" placeholder="Say something… (Enter)" /></div>
 
     <div class="bottom">
+      <div id="my-status" class="status-row hidden"></div>
       <div class="vitals">
         <div id="sync-badge" class="sync-badge hidden" title="Your level is synced down to this floor: stats and gear are scaled to match its monsters, skills are kept, and you earn bonus XP."></div>
         <div class="bar hp"><i></i><span></span></div>
@@ -231,6 +233,56 @@
   </div>
 
   <!-- Auction house -->
+  <div id="bank-panel" class="sheet hidden">
+    <div class="sheet-inner panel">
+      <header>
+        <div class="tabs" id="bank-tabs"></div>
+        <button class="btn small ghost" data-close type="button">✕</button>
+      </header>
+      <div class="bank-gold">
+        <span>🏦 <b id="bank-gold">0</b> in the bank · 🪙 <b id="bank-mygold">0</b> on you</span>
+        <span class="bank-gold-move"><input id="bank-gold-n" type="number" min="1" inputmode="numeric" placeholder="Amount" aria-label="Gold amount"><button class="btn small" id="bank-dep-gold" type="button">Deposit</button><button class="btn small" id="bank-wd-gold" type="button">Withdraw</button></span>
+      </div>
+      <div class="bank-split">
+        <div><h3>Bank <small class="muted">shared by all your heroes</small></h3><div id="bank-grid" class="inv-grid"></div></div>
+        <div><h3>Your pack</h3><div id="bank-pack" class="inv-grid"></div></div>
+      </div>
+      <div id="bank-detail" class="item-detail"></div>
+    </div>
+  </div>
+
+  <div id="mail-panel" class="sheet hidden">
+    <div class="sheet-inner panel">
+      <header>
+        <div class="tabs">
+          <button class="tab active" data-mtab="inbox" type="button">Inbox <span id="mail-unread-dot" class="dot hidden"></span></button>
+          <button class="tab" data-mtab="send" type="button">Write a letter</button>
+        </div>
+        <button class="btn small ghost" data-close type="button">✕</button>
+      </header>
+      <div data-mbody="inbox">
+        <div class="ah-split">
+          <div id="mail-list" class="ah-list"></div>
+          <div id="mail-read" class="item-detail mail-read"></div>
+        </div>
+      </div>
+      <div data-mbody="send" class="hidden">
+        <div class="mail-split">
+          <div class="mail-form">
+            <label class="mf"><span>To</span><span class="mail-to"><input id="mail-to" maxlength="16" placeholder="Hero name" autocomplete="off"><button class="btn small" id="mail-find" type="button">Find</button></span></label>
+            <div id="mail-picks" class="mail-picks"></div>
+            <label class="mf"><span>Subject</span><input id="mail-subject" maxlength="40" autocomplete="off"></label>
+            <label class="mf"><span>Message</span><textarea id="mail-body" maxlength="500" rows="4"></textarea></label>
+            <div class="mf"><span>Attached items <small class="muted">(pick from your pack)</small></span><div id="mail-att" class="mail-att"></div></div>
+            <label class="mf"><span>Gold</span><input id="mail-gold" type="number" min="0" inputmode="numeric" value="0"></label>
+            <div class="mail-send-row"><button class="btn gold" id="mail-send" type="button">Send</button><span id="mail-cost" class="muted"></span></div>
+          </div>
+          <div><h3>Your pack</h3><div id="mail-pack" class="inv-grid"></div><div id="mail-detail" class="item-detail"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="ah-panel" class="sheet hidden">
     <div class="sheet-inner panel">
       <header>

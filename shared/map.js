@@ -341,6 +341,7 @@ export function generateDungeon(seed, floor) {
 // Hand-made hub. Legend:
 //  # tree line (blocks)   . grass   , cobblestone   H house   F fountain   T tree   W well
 //  D dungeon entrance     M merchant   S smith   P player spawn   L lamp post (on cobble)
+//  A auctioneer   C artificer   B banker   O mailbox   X duel arena
 const TOWN = [
   '##################################',
   '##TT..TT....######....T..TT..TT###',
@@ -348,13 +349,13 @@ const TOWN = [
   '#..HHHHH....#,,,,#....HHHHHH....T#',
   '#..HHHHH....,,,,,,....HHHHHH.....#',
   '#..HHHHH...,,,L,,,,...HHHHHH..T..#',
-  '#T..,,,...,,,,,,,,,,..,,,........#',
+  '#T..,,B...,,,,,,,,,,..,,,........#',
   '#...,,,,,,,,,,,,,,,,,,,,,,.......#',
   '#....L,,,,,,,,FFF,,,,,,L,,..T....#',
   '#.....,,,M,,,,FFF,,,,S,,,,.......#',
   '#T....,,,,,,,,FFF,,,,,,,,,....T..#',
   '#.....,,,,,,,,,,,,,,,,,,,,.......#',
-  '#..HHHH,,,,,,,,P,,,,,,,,HHHHH....#',
+  '#..HHHH,,,,,,,,P,,O,,,,,HHHHH....#',
   '#..HHHH..A,,,,,,,,,,C,..HHHHH..T.#',
   '#..HHHH...L,,,,,,,,,L...HHHHH....#',
   '#T.........,,,,,,,,,.........T...#',
@@ -388,7 +389,7 @@ export function generateTown() {
       const c = TOWN[y][x];
       const i = y * w + x;
       const wx = toWorld(x); const wy = toWorld(y);
-      map.ground[i] = ',DMSPLFCAX'.includes(c) ? 1 : 0;
+      map.ground[i] = ',DMSPLFCAXBO'.includes(c) ? 1 : 0;
       if (c === '#') map.tiles[i] = T.WALL;
       else if (c === 'H' || c === 'F' || c === 'T' || c === 'W') map.tiles[i] = T.BLOCK;
       else map.tiles[i] = T.FLOOR;
@@ -399,6 +400,8 @@ export function generateTown() {
       if (c === 'S') map.npcs.push({ id: 'smith', type: 'smith', name: 'Hilda the Smith', x: wx, y: wy, rot: -Math.PI / 2 });
       if (c === 'X') map.arena = { x: wx, y: wy, r: 4.4 * TILE };
       if (c === 'A') map.npcs.push({ id: 'auctioneer', type: 'auctioneer', name: 'Vesna the Broker', x: wx, y: wy, rot: Math.PI });
+      if (c === 'B') map.npcs.push({ id: 'banker', type: 'banker', name: 'Odo the Banker', x: wx, y: wy, rot: 0 });
+      if (c === 'O') map.npcs.push({ id: 'mailbox', type: 'mailbox', name: 'Mailbox', x: wx, y: wy, rot: 0 });
       if (c === 'C') map.npcs.push({ id: 'crafter', type: 'crafter', name: 'Orlen the Artificer', x: wx, y: wy, rot: Math.PI });
       // Rectangular blocks: houses and the fountain become single props with a footprint.
       if ((c === 'H' || c === 'F') && !seen.has(i)) {

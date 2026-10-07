@@ -1,6 +1,7 @@
 // The running game: local hero movement (predicted), combat input, server snapshots and events.
 import { buildMap, moveCircle, TILE, T, toTile } from '/shared/map.js';
-import { SKILLS, CLASSES, xpToNext, MONSTERS, RARITY_COLOR, MATERIALS } from '/shared/rules.js';
+import { SKILLS, CLASSES, xpToNext, MONSTERS, RARITY_COLOR, MATERIALS, SLOW_MULT } from '/shared/rules.js';
+import { parseDebuffs } from './status.js';
 
 const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
@@ -71,6 +72,12 @@ export class Game {
     this.on('gate', (d) => this.ui.openGate(d.max));
     this.on('crafter', () => this.ui.openCraft());
     this.on('auction', () => this.ui.openAuction());
+    this.on('bank', () => this.ui.openBank());
+    this.on('mailbox', () => this.ui.openMail());
+    this.on('mailNotice', (d) => {
+      this.ui.setMailUnread(d.unread);
+      if (d.join && d.unread > 0) this.ui.msg(`You have ${d.unread} unread letter${d.unread > 1 ? 's' : ''}. Visit the mailbox in town.`, 'good');
+    });
     this.on('mats', (d) => {
       this.char.mats = d.mats;
       const def = MATERIALS[d.got.mat];
@@ -87,6 +94,11 @@ export class Game {
       this.ui.craftResult(`<div class="muted" style="font-size:12px;margin-bottom:4px">You crafted:</div>${this.ui.itemCard(d.item)}`);
     });
     this.on('travel', (d) => { this.ui.center(d.text, 1400); this.sfx.play('stairs'); document.querySelector('#fade').classList.add('on'); this.input.enabled = false; });
+    this.on('status', (list) => {
+      const t = now();
+      this.status = list.map(([id, left, n]) => ({ id, until: t + left, n }));
+      this.ui.setStatus(this.status, t);
+    });
     this.on('buff', (b) => {
       const txt = { warcry: 'War Cry! Damage and armor up', bloodlust: 'Bloodlust! Faster attacks and life steal', ward: `Arcane Ward: absorbs ${b.hp} damage` }[b.id];
       if (txt) this.ui.msg(txt, 'good');
@@ -170,10 +182,12 @@ export class Game {
         this.ui.partyHp(v.e.pid, hp, hpMax, dead);
       }
     }
-    for (const [id, x, y, rot, hp, st, fl] of s.m) {
+    const tNow = now();
+    for (const [id, x, y, rot, hp, st, fl, db] of s.m) {
       const v = this.world.ents.get(id);
       if (!v) continue;
       v.tx = x; v.ty = y; v.trot = rot; v.hp = hp; v.fl = fl || 0;
+      v.db = db ? parseDebuffs(db, tNow) : null;
       if (v.anim && v.k === 'm') { const chill = !!(v.fl & 2); if (chill !== v.chilled) { v.chilled = chill; v.anim.tint = chill ? 0x5aa8ff : null; } }
       if (v.anim) { v.anim.windup = st === 2 && !MONSTERS[v.e.type]?.ranged; v.anim.stunned = st === 3; }
     }
@@ -469,7 +483,7 @@ export class Game {
       const d = Math.hypot(v.x - me.x, v.y - me.y);
       if (v.k === 'l' && v.e.item) consider(d, 2.4, { kind: 'loot', id: v.id, text: `Pick up ${v.e.item.name}`, color: RARITY_COLOR[v.e.item.rarity] });
       if (v.k === 'c' && !v.e.open) consider(d, 2.6, { kind: 'chest', id: v.id, text: 'Open chest' });
-      if (v.k === 'n') consider(d, 3.5, { kind: 'npc', text: `Talk to ${v.e.name}` });
+      if (v.k === 'n') consider(d, 3.5, { kind: 'npc', text: v.e.type === 'mailbox' ? 'Check the mailbox' : v.e.type === 'banker' ? `Visit your bank (${v.e.name})` : `Talk to ${v.e.name}` });
     }
     const m = this.map;
     if (m.kind === 'dungeon') {
@@ -545,7 +559,8 @@ export class Game {
         mx = fx * mv.y + rx * mv.x; my = fz * mv.y + rz * mv.x;
       }
       const mag = Math.hypot(mx, my);
-      const slow = t < this.swingUntil ? 0.3 : 1;
+      const slowed = this.status?.some((x) => x.id === 'slow' && x.until > t);
+      const slow = (t < this.swingUntil ? 0.3 : 1) * (slowed ? SLOW_MULT : 1);
       const speed = this.derived.moveSpeed * Math.min(1, mag) * slow;
       if (mag > 0.05) {
         const np = moveCircle(this.map, me.x, me.y, (mx / mag) * speed * dt, (my / mag) * speed * dt, PLAYER_R);
@@ -572,6 +587,7 @@ export class Game {
     // HUD
     this.ui.vitals(this.hp, this.hpMax, this.mp, this.mpMax);
     this.ui.skills(this.cds, t, this.mp);
+    this.ui.statusTick(t);
     const usable = this.ui.anyOpen() ? null : this.findUsable();
     this.ui.prompt(usable?.text || null);
     // Item card for loot under the mouse, or the item you're standing next to. Not on touch

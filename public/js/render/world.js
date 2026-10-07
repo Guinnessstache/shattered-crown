@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, cutUniforms } from './level.js';
 import { THEME_TEX } from './textures.js';
 import { setMaterialQuality } from './materials.js';
-import { buildHero, buildMonster, buildMerchant, buildWolf, blobShadow, Animator } from './models.js';
+import { buildHero, buildMonster, buildMerchant, buildMailbox, buildWolf, blobShadow, Animator } from './models.js';
 import { SkinnedAnimator } from './skinned.js';
 import * as P from './props.js';
 import { FX, projectileMesh, lootMesh } from './fx.js';
@@ -167,8 +167,8 @@ export class World {
         break;
       }
       case 'n': {
-        obj = buildMerchant(e.type);
-        anim = new Animator(obj);
+        obj = e.type === 'mailbox' ? buildMailbox() : buildMerchant(e.type);
+        anim = e.type === 'mailbox' ? null : new Animator(obj);
         label = this.label(e.name, 'npc');
         break;
       }

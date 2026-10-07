@@ -48,6 +48,9 @@ const ui = new UI({
   },
   sfx: (n) => sfx.play(n),
   ah: (d) => new Promise((res) => socket.emit('ah', d, (r) => res(r || { error: 'No reply from server' }))),
+  bank: (d) => new Promise((res) => socket.emit('bank', d, (r) => res(r || { error: 'No reply from server' }))),
+  mail: (d) => new Promise((res) => socket.emit('mail', d, (r) => res(r || { error: 'No reply from server' }))),
+  vkb: (el) => openVkb(el),
   leave: () => leaveGame(),
   nearShop: () => game?.nearShop(),
   panelsChanged: (open) => { if (open) { sfx.play('click'); if (!$('#menu-panel').classList.contains('hidden')) fillDevices(); } },
@@ -57,6 +60,8 @@ const input = new Input(world.renderer.domElement, {
   onAction: (name, down, src) => {
     unlockAudio(); voice?.unlock();
     if (name === 'ptt' && !down) { voice?.pushToTalk(false); return; }
+    // On-screen keyboard open over a game window (typing a letter with a controller).
+    if (game && vkbOpen()) { if (down && src === 'pad') { ui.navRoot = $('#vkb'); try { vkbPad(name); } finally { ui.navRoot = null; } } return; }
     if (game) game.action(name, down, src);
     else if (down && src === 'pad') titlePad(name);
   },
@@ -460,7 +465,8 @@ function closeVkb() {
   $('#vkb').classList.add('hidden');
   const t = vkbTarget; vkbTarget = null;
   // Jump to the button that uses what was typed.
-  const next = { 'hero-name': '#create-hero-btn', 'join-code': '#join-btn', 'auth-user': '#auth-pass', 'auth-pass': '#auth-submit' }[t?.id];
+  const next = { 'hero-name': '#create-hero-btn', 'join-code': '#join-btn', 'auth-user': '#auth-pass', 'auth-pass': '#auth-submit', 'mail-to': '#mail-find', 'bank-gold-n': '#bank-dep-gold' }[t?.id];
+  t?.dispatchEvent(new Event('change', { bubbles: true }));
   (next ? $(next) : t)?.focus({ preventScroll: true });
 }
 function vkbPad(name) {

@@ -132,6 +132,22 @@ Type `/console` (or `/admin`) in chat while playing, then enter the admin passwo
 
 Wrong passwords are limited to 5 tries per 10 minutes per IP. Every admin action is written to the server log (`[admin] …`).
 
+## Buffs, debuffs, bank and mail
+
+**Buff and debuff timers.** Icons above your health bar show what's on you and how long it lasts (the ring empties as it runs out; a number in the corner is poison stacks or the ward's shield left). Hover for a description. Your target's (and a boss's) stun, slow, chill, burning and poison show under its health bar.
+- Monsters now put debuffs on you: Cave Spiders, Spiderlings and the Broodmother poison (stacks up to 3), Fire Imps' fireballs set you burning, and a boss slam dazes you (slower movement for 2.5s). Tune them in `MONSTER_DEBUFF` in `shared/rules.js`.
+
+**Bank (Odo the Banker, north-west of the town square).** Shared by every hero on your account, so it's also how you pass gear and gold to your other heroes.
+- 30 slots per tab; tabs 2–4 cost 2,500 / 10,000 / 40,000 gold (`BANK` in `shared/rules.js`). Gold can be stored too.
+- Click an item, then Store / Take; double-click (or X on a controller) moves it straight away; click an empty bank slot to put the picked item there. LB/RB switch tabs.
+- Every change writes the hero and the bank in one database transaction, so an item can't be lost or copied if the server stops halfway.
+
+**Mail (the mailbox by the spawn point).** Write to any hero by name: up to 6 items and any amount of gold, 10 gold postage plus 10 per item (`MAIL` in `shared/rules.js`).
+- Names aren't unique, so **Find** lists every hero with that name (with level, class and when they last played) and you pick one. Party members and your own heroes are offered as quick picks.
+- Attached items and gold stay on the letter until taken (one at a time or **Take all**). A letter can be sent back; unclaimed letters with something attached go back to the sender after 30 days (or straight away if the hero was deleted). Empty letters are thrown away after 30 days.
+- You're told about new letters as they arrive and when you log in, and an ✉ badge shows unread letters.
+- On a controller, press A on a text box to type with the on-screen keyboard.
+
 ## Project layout
 
 ```

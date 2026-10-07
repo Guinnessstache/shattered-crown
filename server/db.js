@@ -2,7 +2,7 @@
 // for local play. Both expose the same async API.
 import { promises as fs, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { itemLook } from '../shared/rules.js';
+import { itemLook, MAIL } from '../shared/rules.js';
 
 export const MAX_CHARS = 6;
 
@@ -62,6 +62,20 @@ class PgStore {
       );
       CREATE INDEX IF NOT EXISTS auctions_status ON auctions(status, price);
       CREATE INDEX IF NOT EXISTS auctions_seller ON auctions(seller_char, status);
+      CREATE TABLE IF NOT EXISTS banks (
+        account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS mail (
+        id SERIAL PRIMARY KEY,
+        to_char INTEGER NOT NULL, to_name TEXT NOT NULL,
+        from_char INTEGER NOT NULL, from_name TEXT NOT NULL,
+        subject TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '',
+        items JSONB NOT NULL DEFAULT '[]', gold BIGINT NOT NULL DEFAULT 0,
+        created TIMESTAMPTZ DEFAULT now(),
+        read BOOLEAN NOT NULL DEFAULT false, returned BOOLEAN NOT NULL DEFAULT false, deleted BOOLEAN NOT NULL DEFAULT false
+      );
+      CREATE INDEX IF NOT EXISTS mail_to ON mail(to_char, deleted);
     `);
   }
   async q(sql, args) { return (await this.pool.query(sql, args)).rows; }
@@ -122,6 +136,83 @@ class PgStore {
   }
   async ahUncancel(id) { await this.q("UPDATE auctions SET status = 'active' WHERE id = $1 AND status = 'cancelled'", [id]); }
   async ahCollect(cid) { return (await this.q("UPDATE auctions SET status = 'collected' WHERE seller_char = $1 AND status = 'sold' RETURNING *", [cid])).map(ahRow); }
+
+  // One transaction: the hero and the bank / a letter change together or not at all, so an item
+  // can never be in two places (or none) if the server stops halfway.
+  async tx(fn) {
+    const c = await this.pool.connect();
+    try {
+      await c.query('BEGIN');
+      const r = await fn(async (sql, args) => (await c.query(sql, args)).rows);
+      await c.query('COMMIT');
+      return r;
+    } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
+  }
+  async heroBasic(cid) {
+    const r = (await this.q('SELECT id, account_id, name, cls, level FROM characters WHERE id = $1', [cid]))[0];
+    return r ? { id: r.id, accountId: r.account_id, name: r.name, cls: r.cls, level: r.level } : null;
+  }
+  async heroesNamed(name, limit = 8) {
+    return (await this.q('SELECT id, account_id, name, cls, level, updated FROM characters WHERE lower(name) = lower($1) ORDER BY updated DESC LIMIT $2', [name, limit]))
+      .map((r) => ({ id: r.id, accountId: r.account_id, name: r.name, cls: r.cls, level: r.level, updated: r.updated }));
+  }
+
+  // ---- bank (one per account)
+  async bankGet(aid) { return (await this.q('SELECT data FROM banks WHERE account_id = $1', [aid]))[0]?.data || null; }
+  async bankSave(aid, bank, cid, charData) {
+    await this.tx(async (q) => {
+      await q('INSERT INTO banks (account_id, data) VALUES ($1, $2) ON CONFLICT (account_id) DO UPDATE SET data = $2', [aid, bank]);
+      if (charData) await q('UPDATE characters SET data = $3, level = $4, updated = now() WHERE id = $1 AND account_id = $2', [cid, aid, charData, charData.level]);
+    });
+  }
+
+  // ---- mail
+  async mailSweep() {
+    // Unclaimed letters with something attached go back to the sender after MAIL.keepDays (or at
+    // once if the recipient was deleted); old empty letters are thrown away. Returned letters stay.
+    await this.q(`UPDATE mail SET to_char = from_char, to_name = from_name, from_char = to_char, from_name = to_name, returned = true, read = false, created = now()
+      WHERE NOT deleted AND NOT returned AND (jsonb_array_length(items) > 0 OR gold > 0)
+      AND (created < now() - make_interval(days => $1) OR NOT EXISTS (SELECT 1 FROM characters c WHERE c.id = mail.to_char))`, [MAIL.keepDays]);
+    await this.q("UPDATE mail SET deleted = true WHERE NOT deleted AND jsonb_array_length(items) = 0 AND gold = 0 AND created < now() - make_interval(days => $1)", [MAIL.keepDays]);
+  }
+  async mailSend(m, aid, cid, charData) {
+    return this.tx(async (q) => {
+      const id = (await q('INSERT INTO mail (to_char, to_name, from_char, from_name, subject, body, items, gold) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+        [m.toChar, m.toName, m.fromChar, m.fromName, m.subject, m.body, JSON.stringify(m.items), m.gold]))[0].id;
+      await q('UPDATE characters SET data = $3, level = $4, updated = now() WHERE id = $1 AND account_id = $2', [cid, aid, charData, charData.level]);
+      return id;
+    });
+  }
+  async mailInbox(cid, limit = MAIL.inboxMax) {
+    return (await this.q('SELECT * FROM mail WHERE to_char = $1 AND NOT deleted ORDER BY created DESC LIMIT $2', [cid, limit])).map(mailRow);
+  }
+  async mailUnread(cid) { return Number((await this.q('SELECT count(*) AS n FROM mail WHERE to_char = $1 AND NOT deleted AND NOT read', [cid]))[0].n); }
+  // Take attachments: `fn(letter)` moves them onto the hero and returns what's left on the letter.
+  async mailTake(id, cid, aid, fn) {
+    return this.tx(async (q) => {
+      const r = (await q('SELECT * FROM mail WHERE id = $1 AND to_char = $2 AND NOT deleted FOR UPDATE', [id, cid]))[0];
+      if (!r) return { error: 'That letter is gone' };
+      const out = fn(mailRow(r));
+      if (out.error) return out;
+      await q('UPDATE mail SET items = $2, gold = $3, read = true WHERE id = $1', [id, JSON.stringify(out.items), out.gold]);
+      await q('UPDATE characters SET data = $3, level = $4, updated = now() WHERE id = $1 AND account_id = $2', [cid, aid, out.charData, out.charData.level]);
+      return out;
+    });
+  }
+  async mailMarkRead(id, cid) { await this.q('UPDATE mail SET read = true WHERE id = $1 AND to_char = $2', [id, cid]); }
+  async mailDelete(id, cid) {
+    return (await this.q("UPDATE mail SET deleted = true WHERE id = $1 AND to_char = $2 AND NOT deleted AND jsonb_array_length(items) = 0 AND gold = 0 RETURNING id", [id, cid])).length > 0;
+  }
+  async mailReturn(id, cid) {
+    const r = (await this.q(`UPDATE mail SET to_char = from_char, to_name = from_name, from_char = to_char, from_name = to_name, returned = true, read = false, created = now()
+      WHERE id = $1 AND to_char = $2 AND NOT deleted AND NOT returned RETURNING *`, [id, cid]))[0];
+    return r ? mailRow(r) : null;
+  }
+}
+
+function mailRow(r) {
+  return { id: r.id, toChar: r.to_char, toName: r.to_name, fromChar: r.from_char, fromName: r.from_name, subject: r.subject, body: r.body,
+    items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items || [], gold: Number(r.gold) || 0, created: r.created, read: !!r.read, returned: !!r.returned };
 }
 
 function ahRow(r) {
@@ -134,6 +225,8 @@ class FileStore {
     mkdirSync(path.dirname(file), { recursive: true });
     this.d = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { seq: 1, accounts: [], characters: [] };
     this.d.auctions ||= [];
+    this.d.banks ||= {};
+    this.d.mail ||= [];
     this.writing = null; this.pending = false;
   }
   async flush() {
@@ -220,6 +313,74 @@ class FileStore {
     if (rows.length) await this.flush();
     return rows.map(ahRow);
   }
+
+  // ---- heroes by id / name (mail recipients)
+  async heroBasic(cid) {
+    const c = this.d.characters.find((x) => x.id === cid);
+    return c ? { id: c.id, accountId: c.account_id, name: c.data.name, cls: c.data.cls, level: c.data.level } : null;
+  }
+  async heroesNamed(name, limit = 8) {
+    const n = name.toLowerCase();
+    return this.d.characters.filter((c) => c.data.name.toLowerCase() === n).sort((a, b) => (b.updated > a.updated ? 1 : -1)).slice(0, limit)
+      .map((c) => ({ id: c.id, accountId: c.account_id, name: c.data.name, cls: c.data.cls, level: c.data.level, updated: c.updated }));
+  }
+  setChar(aid, cid, data) {
+    const c = this.d.characters.find((x) => x.id === cid && x.account_id === aid);
+    if (c) { c.data = clone(data); c.updated = new Date().toISOString(); }
+  }
+
+  // ---- bank (writes to the bank and the hero land in the same file write)
+  async bankGet(aid) { const b = this.d.banks[aid]; return b ? clone(b) : null; }
+  async bankSave(aid, bank, cid, charData) { this.d.banks[aid] = clone(bank); if (charData) this.setChar(aid, cid, charData); await this.flush(); }
+
+  // ---- mail
+  async mailSweep() {
+    const cutoff = Date.now() - MAIL.keepDays * 864e5;
+    let changed = false;
+    for (const m of this.d.mail) {
+      if (m.deleted) continue;
+      const has = m.items.length > 0 || m.gold > 0;
+      const old = Date.parse(m.created) < cutoff;
+      if (has && !m.returned && (old || !this.d.characters.some((c) => c.id === m.to_char))) { swapMail(m); changed = true; }
+      else if (!has && old) { m.deleted = true; changed = true; }
+    }
+    if (changed) await this.flush();
+  }
+  async mailSend(m, aid, cid, charData) {
+    const r = { id: this.id(), to_char: m.toChar, to_name: m.toName, from_char: m.fromChar, from_name: m.fromName, subject: m.subject, body: m.body, items: clone(m.items), gold: m.gold, created: new Date().toISOString(), read: false, returned: false, deleted: false };
+    this.d.mail.push(r); this.setChar(aid, cid, charData); await this.flush(); return r.id;
+  }
+  async mailInbox(cid, limit = MAIL.inboxMax) {
+    return this.d.mail.filter((m) => m.to_char === cid && !m.deleted).sort((a, b) => (b.created > a.created ? 1 : b.created < a.created ? -1 : b.id - a.id)).slice(0, limit).map((m) => mailRow(clone(m)));
+  }
+  async mailUnread(cid) { return this.d.mail.filter((m) => m.to_char === cid && !m.deleted && !m.read).length; }
+  async mailTake(id, cid, aid, fn) {
+    const m = this.d.mail.find((x) => x.id === id && x.to_char === cid && !x.deleted);
+    if (!m) return { error: 'That letter is gone' };
+    const out = fn(mailRow(clone(m)));
+    if (out.error) return out;
+    m.items = clone(out.items); m.gold = out.gold; m.read = true;
+    this.setChar(aid, cid, out.charData);
+    await this.flush();
+    return out;
+  }
+  async mailMarkRead(id, cid) { const m = this.d.mail.find((x) => x.id === id && x.to_char === cid); if (m && !m.read) { m.read = true; await this.flush(); } }
+  async mailDelete(id, cid) {
+    const m = this.d.mail.find((x) => x.id === id && x.to_char === cid && !x.deleted && !x.items.length && !x.gold);
+    if (!m) return false;
+    m.deleted = true; await this.flush(); return true;
+  }
+  async mailReturn(id, cid) {
+    const m = this.d.mail.find((x) => x.id === id && x.to_char === cid && !x.deleted && !x.returned);
+    if (!m) return null;
+    swapMail(m); await this.flush(); return mailRow(clone(m));
+  }
+}
+
+const clone = (v) => JSON.parse(JSON.stringify(v));
+function swapMail(m) {
+  [m.to_char, m.from_char] = [m.from_char, m.to_char]; [m.to_name, m.from_name] = [m.from_name, m.to_name];
+  m.returned = true; m.read = false; m.created = new Date().toISOString();
 }
 
 // What the character looks like, for the select screen.
