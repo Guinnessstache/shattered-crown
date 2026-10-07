@@ -1,6 +1,6 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
 import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS } from '/shared/rules.js';
-import { itemIcon } from './render/icons.js';
+import { itemIcon, setIconClass } from './render/icons.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -274,6 +274,7 @@ export class UI {
   }
 
   setChar(char, derived, next) {
+    setIconClass(char?.cls);
     this.char = char; this.derived = derived; this.next = next;
     $('#pts-dot').classList.toggle('hidden', !(char.statPts > 0 || char.skillPts > 0));
     this.potions(char.potions);

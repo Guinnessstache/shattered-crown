@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { softTexture, glow, flat, common } from './materials.js';
 import { weaponMesh, shieldMesh } from './models.js';
-import { MATERIALS, itemAura } from '/shared/rules.js';
+import { MATERIALS, itemLook } from '/shared/rules.js';
 const MAT_COLORS = Object.fromEntries(Object.entries(MATERIALS).map(([k, v]) => [k, v.color]));
 
 const tmp = new THREE.Vector3();
@@ -310,7 +310,7 @@ export function lootMesh(e) {
   } else if (e.item) {
     const it = e.item;
     let m;
-    const au = itemAura(it);
+    const au = itemLook(it);
     if (it.slot === 'weapon') { m = weaponMesh(it.kind, it.tier, it.rarity, au); m.rotation.set(Math.PI / 2, 0, 0.6); m.position.y = 0.06; if (au.el) { g.userData.el = au.el; g.userData.tip = m.userData.tip; } }
     else if (it.slot === 'offhand') { m = shieldMesh(it.tier, it.rarity, au); m.rotation.x = -Math.PI / 2; m.position.y = 0.05; m.scale.setScalar(0.8); }
     else if (it.slot === 'ring' || it.slot === 'amulet') {

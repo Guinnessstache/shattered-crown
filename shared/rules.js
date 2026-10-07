@@ -217,6 +217,22 @@ export function itemAura(it) {
   const first = Object.keys(it.mods).find((k) => MOD_COLOR[k] != null);
   return { col: first ? MOD_COLOR[first] : null, el: null };
 }
+// Everything the renderer needs to draw an item uniquely: shape family (kind/tier), rarity,
+// a stable seed from the item id (picks blade shape, guard, pommel, heraldry, metal…) and the
+// colors of its two strongest bonuses (enamel, gems, runes, cloth).
+export function itemSeed(it) {
+  const str = String(it?.id ?? `${it?.base}${it?.ilvl}${it?.name}`);
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h;
+}
+export function itemLook(it) {
+  if (!it) return null;
+  const { col, el } = itemAura(it);
+  const keys = Object.keys(it.mods || {}).filter((k) => MOD_COLOR[k] != null);
+  const second = el ? keys[0] : keys[1];
+  return { kind: it.kind, tier: it.tier ?? 0, rarity: it.rarity || 'common', col, el, col2: second ? MOD_COLOR[second] : null, s: itemSeed(it) };
+}
 const RARE_A = ['Grim', 'Storm', 'Blood', 'Ash', 'Iron', 'Raven', 'Dread', 'Ember', 'Bone', 'Gloom', 'Wolf', 'Doom', 'Night', 'Rune'];
 const RARE_B = { weapon: ['Fang', 'Bite', 'Edge', 'Song', 'Cleaver', 'Reaper'], offhand: ['Ward', 'Wall', 'Guard', 'Bastion'], head: ['Visage', 'Crown', 'Cowl', 'Brow'], chest: ['Shell', 'Hide', 'Carapace', 'Mantle'], hands: ['Grasp', 'Hold', 'Claws', 'Fists'], feet: ['Stride', 'March', 'Track', 'Tread'], ring: ['Loop', 'Coil', 'Band', 'Spiral'], amulet: ['Heart', 'Eye', 'Charm', 'Star'] };
 

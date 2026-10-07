@@ -1,287 +1,287 @@
 {
- "v": 6,
+ "v": 8,
  "tex": {
-  "1sgsi19": {
+  "1rap8eb": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "crypt.floor"
   },
-  "13a1mhw": {
+  "snze5q": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "crypt.wall"
   },
-  "qe1pvv": {
+  "17o0mll": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "crypt.top"
   },
-  "1nw8is9": {
+  "1u9mhs7": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "crypt.pillar"
   },
-  "kh1j1j": {
+  "6g608p": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "crypt.trim"
   },
-  "j3oi4x": {
+  "t7hfqj": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "cavern.floor"
   },
-  "otskvt": {
+  "14y78qj": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "cavern.wall"
   },
-  "x3k11w": {
+  "whsnny": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "cavern.top"
   },
-  "1vvnyxo": {
+  "g5fd4i": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "cavern.pillar"
   },
-  "1as14k2": {
+  "1n07di0": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "cavern.trim"
   },
-  "11k0xur": {
+  "1bm8e7x": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 1,
    "name": "infernal.floor"
   },
-  "1qvb0yg": {
+  "9irpoe": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 1,
    "name": "infernal.wall"
   },
-  "iyw002": {
+  "17k9qgo": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "infernal.top"
   },
-  "12om4b3": {
+  "189llt1": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 1,
    "name": "infernal.pillar"
   },
-  "8xlp3o": {
+  "1skq1nq": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "infernal.trim"
   },
-  "1lrt1w4": {
+  "tv3jge": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.grass"
   },
-  "6tfpvw": {
+  "1x28092": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.cobble"
   },
-  "1bfo7pk": {
+  "u0hmre": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.dirt"
   },
-  "spzej2": {
+  "1rs9jqg": {
    "s": 512,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "town.plaster"
   },
-  "ztr59u": {
+  "at3f8w": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "town.timber"
   },
-  "d1hxjb": {
+  "18v6qe9": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.roof"
   },
-  "1ia1t75": {
+  "1nuhxz3": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.roof2"
   },
-  "slcizt": {
+  "1dd87gj": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.roof3"
   },
-  "1pqj12k": {
+  "1mxa1jm": {
    "s": 512,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "town.stone"
   },
-  "i4uym4": {
+  "qvxdim": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "town.bark"
   },
-  "f541k1": {
+  "12xigqn": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "extra.sand"
   },
-  "v1yc7k": {
+  "537vbq": {
    "s": 256,
    "n": 1,
    "r": 1,
    "e": 0,
    "name": "extra.rock"
   },
-  "imnc6y": {
+  "difyc8": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "extra.hay"
   },
-  "rb1ilb": {
+  "1nwh4x5": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "extra.townStatue"
   },
-  "sr8b3": {
+  "15an3v9": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "extra.statue"
   },
-  "97hr0z": {
+  "c1xi65": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "extra.obsidianStatue"
   },
-  "1ffuzqw": {
+  "n0td8e": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "extra.water"
   },
-  "crqk0g": {
+  "1e4swuq": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.wood"
   },
-  "1o0zu0w": {
+  "58xapa": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.darkwood"
   },
-  "9o96es": {
+  "y0sbx6": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.iron"
   },
-  "1qji7cs": {
+  "f7crjf": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.steel"
   },
-  "7ttao2": {
+  "lqtgx6": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.gold"
   },
-  "kqxdkz": {
+  "4lk27d": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.cloth"
   },
-  "xt62q0": {
+  "1ubmrjq": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.clothN"
   },
-  "460hbk": {
+  "2nivei": {
    "s": 256,
    "n": 1,
    "r": 0,
    "e": 0,
    "name": "common.bone"
   },
-  "1jezypb": {
+  "1qiaz3d": {
    "s": 256,
    "n": 1,
    "r": 0,

@@ -1,12 +1,16 @@
 // Item icons rendered from small 3D models into images (cached), like a console RPG inventory.
 import * as THREE from 'three';
-import { weaponMesh, shieldMesh } from './models.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { weaponMesh, shieldMesh, gearPreview } from './models.js';
 import { common, glow } from './materials.js';
-import { itemAura } from '/shared/rules.js';
+import { itemLook } from '/shared/rules.js';
 
 const SIZE = 96;
 let renderer = null; let scene; let camera;
 const cache = new Map();
+let iconClass = 'knight';
+/** Armour icons show the piece as your class wears it. */
+export function setIconClass(cls) { if (cls && cls !== iconClass) { iconClass = cls; for (const k of [...cache.keys()]) if (/^(head|chest|hands|feet):/.test(k)) cache.delete(k); } }
 const TIER_METAL = [0x7a5a3a, 0x8a8c90, 0xb8bcc4, 0x6a86b0, 0x3a3436, 0xd8a040];
 const GEM = { common: 0xdddddd, magic: 0x4a8aff, rare: 0xffc820, legendary: 0xff7a20 };
 
@@ -16,7 +20,9 @@ function setup() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x303040, 1.6));
+  // Reflections so metal reads as metal (without them steel renders black).
+  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.8; pm.dispose();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x303040, 1.2));
   const d = new THREE.DirectionalLight(0xffffff, 2.5); d.position.set(2, 3, 4); scene.add(d);
   const r = new THREE.DirectionalLight(0xffc080, 1.2); r.position.set(-3, 1, -2); scene.add(r);
   camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
@@ -66,19 +72,21 @@ function jewel(slot, rarity, col = null) {
 
 export function itemIcon(it) {
   if (!it) return '';
-  const au = itemAura(it);
-  const key = `${it.slot}:${it.kind}:${it.tier}:${it.rarity}:${au.col}:${au.el}`;
+  const au = itemLook(it);
+  const key = `${it.slot}:${it.kind}:${it.tier}:${it.rarity}:${au.col}:${au.el}:${au.col2}:${au.s}`;
   if (cache.has(key)) return cache.get(key);
   if (!renderer) setup();
   let obj;
   if (it.slot === 'weapon') { obj = weaponMesh(it.kind, it.tier, it.rarity, au); obj.rotation.z = -Math.PI / 4; obj.position.set(0.3, -0.3, 0); if (it.kind === 'staff') { obj.scale.setScalar(0.72); obj.position.set(0.35, -0.2, 0); } }
   else if (it.slot === 'offhand') obj = shieldMesh(it.tier, it.rarity, au);
   else if (it.slot === 'ring' || it.slot === 'amulet') obj = jewel(it.slot, it.rarity, au.col);
-  else obj = armorPiece(it.slot, it.tier);
-  const box = new THREE.Box3().setFromObject(obj);
+  else obj = gearPreview(iconClass, it.slot, au) || armorPiece(it.slot, it.tier);
+  obj.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  obj.traverseVisible((o) => { if (o.isMesh) { o.geometry.computeBoundingBox(); box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)); } });
   const c = box.getCenter(new THREE.Vector3()); const s = box.getSize(new THREE.Vector3()).length();
   const pivot = new THREE.Group(); pivot.add(obj); obj.position.sub(c);
-  pivot.rotation.y = it.slot === 'weapon' ? 0.4 : 0.35;
+  pivot.rotation.y = it.slot === 'weapon' ? 0.4 : it.slot === 'hands' || it.slot === 'feet' ? -0.6 : 0.35;
   scene.add(pivot);
   camera.position.set(0, s * 0.25, s * 1.9); camera.lookAt(0, 0, 0);
   renderer.setClearColor(0x000000, 0);

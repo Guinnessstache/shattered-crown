@@ -285,7 +285,7 @@ const PAINTERS = {
     const n = makeNoise(o.seed);
     return (x, y) => {
       const g = fbm(n, x / 20, y / 20, 4, o.size / 20);
-      const scratch = Math.abs(n(x / 0.8, y / 30, o.size / 0.8)) < 0.04 ? 0.25 : 0;
+      const scratch = Math.abs(n(x / 0.8, y / 30, o.size / 0.8)) < 0.03 ? 0.06 : 0;
       const col = mix3(hex(o.a), hex(o.b), clamp01(0.5 + g)).map((k) => k + scratch);
       return { color: col, h: clamp01(0.5 + g * 0.3) };
     };
@@ -308,7 +308,7 @@ const cache = new Map();
 // tools/bake_textures.mjs pre-renders every palette entry to WebP (public/tex/), so zones
 // load instantly; anything not baked (or after a painter change) is painted at runtime.
 // Bump PAINT_VERSION whenever a painter changes, then re-run the bake.
-export const PAINT_VERSION = 6;
+export const PAINT_VERSION = 8;
 export function texHash(opts) {
   let h = 2166136261 >>> 0;
   const s = `${PAINT_VERSION}|${JSON.stringify(opts)}`;
@@ -326,7 +326,7 @@ function bakedTex(file, srgb) {
   t.userData.clones = [];
   t.flipY = false;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  setup(t);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; // no needsUpdate until the image arrives
   return t;
 }
 
@@ -457,9 +457,9 @@ export const THEME_TEX = {
   common: {
     wood: { kind: 'planks', a: 0x7a5530, b: 0x4a3018, seed: 51, n: 5 },
     darkwood: { kind: 'planks', a: 0x4a3018, b: 0x24160a, seed: 52, n: 5 },
-    iron: { kind: 'metal', a: 0x6a6e74, b: 0x3a3c40, seed: 53 },
-    steel: { kind: 'metal', a: 0xb8bcc4, b: 0x7a7e86, seed: 54 },
-    gold: { kind: 'metal', a: 0xf0c060, b: 0xa07020, seed: 55 },
+    iron: { kind: 'metal', a: 0x6a6e74, b: 0x4a4c50, seed: 53, bump: 0.7 },
+    steel: { kind: 'metal', a: 0xb8bcc4, b: 0x8a8e96, seed: 54, bump: 0.5 },
+    gold: { kind: 'metal', a: 0xf0c060, b: 0xb88a30, seed: 55, bump: 0.5 },
     cloth: { kind: 'cloth', a: 0x8a2028, b: 0x5a1018, seed: 56 },
     clothN: { kind: 'cloth', a: 0xe8e8e8, b: 0xa8a8a8, seed: 59 }, // neutral, tinted by the material color
     bone: { kind: 'plaster', a: 0xe8dcc0, b: 0xb8a888, seed: 57 },

@@ -3,7 +3,10 @@
 // names (see /models/README) drop straight in and use the same animator.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { common, flat, glow, blobShadowMaterial } from './materials.js';
+import { forgeItem, gearPalette } from './forge.js';
 
 const G = {
   box: (w, h, d) => new THREE.BoxGeometry(w, h, d),
@@ -35,7 +38,11 @@ function armorMat(tier = 1) {
 function trimMat(tier = 1) { return tier >= 2 ? common('gold', { metal: 0.85, rough: 0.3, color: TIER_TRIM[tier] }) : common('iron', { metal: 0.6, rough: 0.5, color: TIER_TRIM[tier] }); }
 
 // ---------------------------------------------------------------- weapons & shields
+// Player weapons and shields come from the forge (unique per item); monsters' crude gear and
+// kinds the forge doesn't make (bows, daggers, clubs, hammers) use the simple models below.
 export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common', aura = null) {
+  const forged = forgeItem({ ...(aura || {}), kind, tier, rarity });
+  if (forged) { elementTip(forged, kind, forged.userData.tipY, aura); return forged; }
   const g = new THREE.Group();
   const blade = common('steel', { metal: 0.85, rough: 0.25, color: tier >= 4 ? 0x5a5a66 : 0xd8dce4 });
   const grip = common('leather', { color: 0x6a4428 });
@@ -89,17 +96,21 @@ export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common', aura = n
     g.add(M(G.cyl(0.03, 0.035, 0.6, 6), common('wood'), 0, 0.2, 0));
     g.add(M(G.box(0.24, 0.12, 0.12), common('iron', { metal: 0.7 }), 0, 0.5, 0));
   }
-  // Elemental weapons: a glowing halo near the business end; the renderer adds particles there.
-  if (aura?.el && tipY) {
-    const tip = new THREE.Object3D(); tip.position.y = tipY; g.add(tip);
-    const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: aura.col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55, toneMapped: false }));
-    h.scale.setScalar(kind === 'staff' ? 0.55 : 0.45); tip.add(h);
-    g.userData.el = aura.el; g.userData.tip = tip; g.userData.col = aura.col;
-  }
+  elementTip(g, kind, tipY, aura);
   return g;
 }
 
+// Elemental weapons: a glowing halo near the business end; the renderer adds particles there.
+function elementTip(g, kind, tipY, aura) {
+  if (!aura?.el || !tipY) return;
+  const tip = new THREE.Object3D(); tip.position.y = tipY; g.add(tip);
+  const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: aura.col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.45, toneMapped: false }));
+  h.scale.setScalar(kind === 'staff' ? 0.5 : 0.38); tip.add(h);
+  g.userData.el = aura.el; g.userData.tip = tip; g.userData.col = aura.col;
+}
+
 export function shieldMesh(tier = 0, rarity = 'common', aura = null) {
+  if (aura) { const forged = forgeItem({ ...aura, kind: 'shield', tier, rarity }); if (forged) return forged; }
   const g = new THREE.Group();
   const face = tier === 0 ? common('wood') : armorMat(tier);
   const trim = trimMat(Math.max(1, tier));
@@ -449,6 +460,7 @@ export function buildSpider({ elite = false, scale = 1, brood = false } = {}) {
 // ---------------------------------------------------------------- factory
 const glbCache = new Map();
 const loader = new GLTFLoader();
+loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/vendor/three/examples/jsm/libs/draco/gltf/'));
 let manifest = null;
 
 // Optional Blender-made models listed in /models/manifest.json replace the built-in ones.
@@ -474,7 +486,12 @@ function texturize(root, { tier = null } = {}) {
     else if (nm === 'trim') m = tier == null ? common('gold', { metal: 0.85, rough: 0.3, color: col }) : trimMat(Math.max(1, tier));
     else if (nm === 'iron' || nm === 'rustiron') m = common('iron', { metal: src.metalness ?? 0.6, rough: src.roughness ?? 0.5, color: col });
     else if (nm === 'leather') m = common('leather', { rough: 0.85, color: col });
-    else if (nm === 'cloth' || nm === 'capemat') m = common('clothN', { rough: 0.9, color: col });
+    else if (nm === 'cloth' || nm === 'clothB' || nm === 'capemat') m = common('clothN', { rough: 0.9, color: col });
+    else if (nm === 'mail') m = common('iron', { metal: 0.75, rough: 0.5, color: col });
+    else if (nm === 'fur') m = common('clothN', { rough: 1, color: col });
+    else if (nm === 'armorL') m = common('leather', { rough: 0.75, color: col });
+    else if (nm === 'armorW') m = common('wood', { rough: 0.9, color: 0xffffff });
+    else if (nm === 'enamel') m = common('clothN', { rough: 0.85, color: col });
     else if (nm === 'bone') m = common('bone', { rough: 0.75, color: col });
     else if (nm === 'wood') m = common('wood', { rough: 0.85, color: col });
     if (m) o.material = m;
@@ -487,6 +504,7 @@ function fromGlb(key, look = null) {
   if (!src) return null;
   const root = new THREE.Group();
   const body = src.clone(true);
+  body.traverse((o) => { if (o.isMesh) o.userData.srcMat = o.material?.name || ''; });
   root.add(body);
   const parts = { root, body };
   body.traverse((o) => { if (o.name && !parts[o.name]) parts[o.name] = o; });
@@ -499,28 +517,50 @@ function fromGlb(key, look = null) {
   root.userData.parts = parts;
   root.userData.height = manifest.heights?.[key] || 1.8;
   root.userData.fromGlb = true;
-  if (look) {
-    // Hero: gear tiers decide which helm shows, armor color and the cape.
-    const chestT = look.chest?.tier ?? 0; const headT = look.head ? look.head.tier : -1;
-    texturize(body, { tier: chestT });
-    for (let t = 0; t < 6; t++) if (parts[`helm_t${t}`]) parts[`helm_t${t}`].visible = t === headT;
-    if (parts.hair) parts.hair.visible = headT < 0;
-    if (parts.cape) {
-      parts.cape.visible = chestT >= 2;
-      const capeCol = look.chest?.col != null ? new THREE.Color(look.chest.col).multiplyScalar(0.55).getHex() : (chestT >= 4 ? 0x1a1a22 : 0x7a1018);
-      parts.cape.material = flat(capeCol, { rough: 0.95, side: THREE.DoubleSide });
-      parts.cape.userData.baseX = parts.cape.rotation.x;
-    }
-    const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
-    wpn.rotation.x = Math.PI / 2; wpn.position.set(0, -0.05, 0.02);
-    parts.handR.add(wpn); parts.weapon = wpn;
-    if (look.offhand) {
-      const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
-      shd.position.set(0.09, -0.04, 0.02); shd.rotation.y = Math.PI / 2 + 0.15;
-      parts.foreL.add(shd); parts.shield = shd;
-    }
-  } else texturize(body);
+  if (look) dressHero(key, parts, body, look);
+  else texturize(body);
   return root;
+}
+
+// Armour groups in the hero models (see tools/blender/armor_kit.py): <piece>_t<tier>.
+const PIECE_SLOT = { chest: 'chest', pauldL: 'chest', pauldR: 'chest', bracerL: 'hands', bracerR: 'hands', gloveL: 'hands', gloveR: 'hands', thighL: 'feet', thighR: 'feet', greaveL: 'feet', greaveR: 'feet', bootL: 'feet', bootR: 'feet', helm: 'head' };
+const SLOT_MATS = ['armor', 'armorL', 'armorW', 'trim', 'enamel', 'rune'];
+const HAIR_UNDER = { hero_knight: 0, hero_berserker: 1, hero_alchemist: 2, hero_druid: 2 };
+
+// Show the piece matching each equipped item's tier, dressed in that item's own materials.
+function dressHero(key, parts, body, look) {
+  const groups = [];
+  body.traverse((o) => { const m = /^([a-zA-Z]+)_t(\d)$/.exec(o.name || ''); if (m && PIECE_SLOT[m[1]]) groups.push({ o, slot: PIECE_SLOT[m[1]], t: +m[2] }); });
+  // Old single-armour models: tint the shared armour by chest tier.
+  const legacy = !groups.some((g) => g.slot !== 'head');
+  texturize(body, legacy ? { tier: look.chest?.tier ?? 0 } : {});
+  for (const { o, slot, t } of groups) {
+    const L = look[slot];
+    o.visible = !!L && (L.tier ?? 0) === t;
+    if (!o.visible) continue;
+    const pal = gearPalette(L);
+    o.traverse((m) => {
+      if (!m.isMesh) return;
+      const nm = (m.userData.srcMat || '').replace(/\.\d+$/, '');
+      if (SLOT_MATS.includes(nm)) m.material = pal[nm];
+    });
+  }
+  if (parts.hair) parts.hair.visible = !look.head || (look.head.tier ?? 0) < (HAIR_UNDER[key] ?? 0);
+  const chestT = look.chest?.tier ?? -1;
+  if (parts.cape) {
+    parts.cape.visible = chestT >= 2;
+    const capeCol = look.chest?.col != null ? new THREE.Color(look.chest.col).multiplyScalar(0.55).getHex() : (chestT >= 4 ? 0x1a1a22 : 0x7a1018);
+    parts.cape.material = flat(capeCol, { rough: 0.95, side: THREE.DoubleSide });
+    parts.cape.userData.baseX = parts.cape.rotation.x;
+  }
+  const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
+  wpn.rotation.x = Math.PI / 2; wpn.position.set(0, -0.05, 0.02);
+  parts.handR.add(wpn); parts.weapon = wpn;
+  if (look.offhand) {
+    const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
+    shd.position.set(0.09, -0.04, 0.02); shd.rotation.y = Math.PI / 2 + 0.15;
+    parts.foreL.add(shd); parts.shield = shd;
+  }
 }
 
 export function buildMonster(type, { elite = false } = {}) {
@@ -570,7 +610,78 @@ export function buildStatue(key, stone, pose = 'raise') {
 }
 
 export function buildHero(cls, look) {
-  return fromGlb(`hero_${cls}`, look || {}) || fromGlb('hero_knight', look || {}) || buildKnight(look);
+  const h = fromGlb(`hero_${cls}`, look || {}) || fromGlb('hero_knight', look || {});
+  if (!h) return buildKnight(look);
+  mergeRig(h);
+  return h;
+}
+
+// Just one slot's armour piece from a hero model, dressed for an item (inventory icons).
+const PREVIEW_PIECES = { chest: ['chest', 'pauldL', 'pauldR'], head: ['helm'], hands: ['bracerL', 'gloveL'], feet: ['thighL', 'greaveL', 'bootL'] };
+export function gearPreview(cls, slot, look) {
+  const key = glbCache.has(`hero_${cls}`) ? `hero_${cls}` : 'hero_knight';
+  const src = glbCache.get(key);
+  if (!src || !PREVIEW_PIECES[slot]) return null;
+  const body = src.clone(true);
+  body.traverse((o) => { if (o.isMesh) o.userData.srcMat = o.material?.name || ''; });
+  texturize(body);
+  const want = PREVIEW_PIECES[slot]; const t = look?.tier ?? 0; const keep = [];
+  body.traverse((o) => { const m = /^([a-zA-Z]+)_t(\d)$/.exec(o.name || ''); if (m && want.includes(m[1]) && +m[2] === t) keep.push(o); });
+  if (!keep.length) return null;
+  const pal = gearPalette(look);
+  const inside = new Set();
+  for (const g of keep) g.traverse((m) => { if (!m.isMesh) return; inside.add(m); const nm = m.userData.srcMat.replace(/\.\d+$/, ''); if (SLOT_MATS.includes(nm)) m.material = pal[nm]; });
+  body.traverse((o) => { if (o.isMesh && !inside.has(o)) o.visible = false; });
+  for (const g of keep) g.visible = true;
+  let any = false; for (const m of inside) if (m.geometry.attributes.position.count) any = true;
+  return any ? body : null;
+}
+
+// A hero model is hundreds of small parts. Once the gear is chosen, merge everything that moves
+// with the same joint and shares a material into one mesh: ~15–25 draw calls instead of ~200.
+const JOINTS = ['hips', 'torso', 'head', 'armL', 'armR', 'foreL', 'foreR', 'handL', 'handR', 'legL', 'legR', 'shinL', 'shinR'];
+function mergeRig(root) {
+  const p = root.userData.parts;
+  root.updateMatrixWorld(true);
+  const keep = new Set([p.weapon, p.shield, p.cape].filter(Boolean));
+  const inv = new THREE.Matrix4(); const m = new THREE.Matrix4();
+  for (const jn of JOINTS) {
+    const J = p[jn]; if (!J) continue;
+    const groups = new Map(); const remove = [];
+    const walk = (o) => {
+      for (const c of [...o.children]) {
+        if (keep.has(c) || JOINTS.includes(c.name)) continue;
+        if (c.visible === false) { remove.push(c); continue; }
+        if (c.isMesh && !c.isSkinnedMesh && c.geometry?.attributes.position) {
+          const key = c.material.uuid;
+          if (!groups.has(key)) groups.set(key, { mat: c.material, list: [] });
+          groups.get(key).list.push(c);
+        }
+        walk(c);
+      }
+    };
+    walk(J);
+    inv.copy(J.matrixWorld).invert();
+    for (const { mat, list } of groups.values()) {
+      if (list.length < 2) continue;
+      const geos = list.map((c) => {
+        let g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone();
+        for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+        if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+        if (!g.attributes.normal) g.computeVertexNormals();
+        return g.applyMatrix4(m.multiplyMatrices(inv, c.matrixWorld));
+      });
+      const merged = mergeGeometries(geos, false);
+      for (const g of geos) g.dispose();
+      if (!merged) continue;
+      const mesh = new THREE.Mesh(merged, mat); mesh.castShadow = true; mesh.name = `${jn}_merged`;
+      J.add(mesh);
+      for (const c of list) remove.push(c);
+    }
+    for (const c of remove) c.parent?.remove(c);
+  }
+  // refresh the parts index (merged meshes replaced the originals)
+  for (const k of Object.keys(p)) if (p[k]?.isObject3D && !p[k].parent && k !== 'root') delete p[k];
 }
 
 // Druid's summon: a translucent glowing wolf.

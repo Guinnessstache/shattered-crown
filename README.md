@@ -101,3 +101,10 @@ Level art lives in `public/js/render/`:
 - `dress.js`: per-theme dungeon dressing (coffins, statues, chains, cobwebs, stalagmites, crystals, mine shoring, obsidian spikes, lava falls, floor decals, torch light pools)
 - `town.js`: the village ground blend, grass and flowers, sky, mountains, clutter and chimney smoke
 - `post.js`: bloom and per-zone colour grading (off on the Low graphics setting)
+
+## Weapons, shields and armor
+
+- **Weapons and shields** are built in the browser by `public/js/render/forge.js`. Each item's tier picks the shape family (Short Sword … Kingsfall, Buckler … Dragonguard); the item's id seeds the part choices (blade outline, tip, fuller, guard, grip wrap, pommel, metal, heraldry); its strongest bonuses colour the gems, runes and paint; rarity adds flair (gem → glowing runes → glowing edge and a rune halo). No two items look the same.
+- **Armor** comes from the Blender hero models. `tools/blender/armor_kit.py` adds six tiers of chest, shoulder, bracer, glove, thigh, greave and boot pieces to every hero in that class's style (plate, brute, robe, wild). The game shows the piece matching each equipped item's tier and dresses it from that item (`gearPalette` in forge.js): its own metal, trim by rarity, enamel and runes in its stat colours.
+- Rebuild the hero models after editing the kit: run `tools/blender/build_models.py` in Blender. Exports are Draco-compressed; the game decodes them with three.js's bundled decoder.
+- **Gear gallery:** open `/dev/gallery.html` on your running server to see every weapon, shield and armor tier side by side (`?view=sword`, `axe`, `mace`, `staff`, `shield`, `variety`, `heroes`, `armor`). Drag to orbit.
