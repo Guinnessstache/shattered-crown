@@ -4,7 +4,7 @@
 import { buildMap, moveCircle, lineOfSight, distanceField, toTile, TILE, isBossFloor } from '../shared/map.js';
 import { RNG, hashSeed } from '../shared/rng.js';
 import { DUEL, settleDuel } from './duel.js';
-import { MONSTERS, SKILLS, CLASSES, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
+import { MONSTERS, SKILLS, CLASSES, SYNC, syncCapFor, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
 
 const TICK = 1 / 20;
 const PLAYER_R = 0.45;
@@ -92,7 +92,7 @@ export class Zone {
   }
 
   describePlayer(p) {
-    return { id: p.id, k: 'p', pid: p.pid, name: p.name, cls: p.cls, level: p.member.char.level, look: p.member.look(), x: r1(p.x), y: r1(p.y), rot: r2(p.rot), hp: Math.ceil(p.hp), hpMax: p.stats.hpMax, dead: p.dead };
+    return { id: p.id, k: 'p', pid: p.pid, name: p.name, cls: p.cls, level: p.member.char.level, look: p.member.look(), x: r1(p.x), y: r1(p.y), rot: r2(p.rot), hp: Math.ceil(p.hp), hpMax: p.stats.hpMax, dead: p.dead, sync: p.stats.sync || 0 };
   }
 
   // Everything a newly arrived player needs to draw the zone.
@@ -114,6 +114,7 @@ export class Zone {
     let { x, y } = this.map.start;
     x += off[0]; y += off[1];
     if (!this.map.walkableAt(x, y)) ({ x, y } = this.map.start);
+    member.syncCap = syncCapFor(this.spec.kind === 'dungeon' ? this.spec.floor : 0);
     const stats = member.derived();
     const p = {
       id: `p${member.pid}`, k: 'p', pid: member.pid, member, name: member.char.name, cls: member.char.cls,
@@ -123,6 +124,7 @@ export class Zone {
     p.hp = Math.min(p.hp, stats.hpMax); p.mp = Math.min(p.mp, stats.mpMax);
     if (p.hp <= 0) p.hp = stats.hpMax;
     this.players.set(member.pid, p);
+    this.party.sendChar?.(member.pid); // sheet + HUD reflect any level sync on this floor
     this.events.push({ t: 'padd', p: this.describePlayer(p) });
     return p;
   }
@@ -144,7 +146,7 @@ export class Zone {
     if (!p) return;
     p.stats = p.member.derived(p.buffs);
     p.hp = Math.min(p.hp, p.stats.hpMax); p.mp = Math.min(p.mp, p.stats.mpMax);
-    this.events.push({ t: 'look', id: p.id, look: p.member.look(), level: p.member.char.level, hpMax: p.stats.hpMax });
+    this.events.push({ t: 'look', id: p.id, look: p.member.look(), level: p.member.char.level, hpMax: p.stats.hpMax, sync: p.stats.sync || 0 });
   }
 
   // Client-reported movement. Accept it unless it's faster than possible or inside a wall.
@@ -501,7 +503,7 @@ export class Zone {
     const xpShare = this.players.size > 1 ? 1.1 : 1; // small co-op bonus, everyone gets full XP
     for (const p of this.players.values()) {
       if (Math.hypot(p.x - m.x, p.y - m.y) > 60) continue;
-      this.party.grantXp(p.pid, Math.round(m.xp * xpShare));
+      this.party.grantXp(p.pid, Math.round(m.xp * xpShare * (p.member.synced ? 1 + SYNC.xpBonus : 1)));
       p.member.char.kills = (p.member.char.kills || 0) + 1;
       this.rollLoot(p, m.x, m.y, m.boss ? 'boss' : m.elite ? 'elite' : 'mob', m);
     }

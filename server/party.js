@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { Zone } from './zone.js';
 import { RNG } from '../shared/rng.js';
 import {
-  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, canEquip, randomItem, makeItem,
+  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, randomItem, makeItem,
   potionPrice, MAX_POTIONS, INV_SIZE, SLOTS, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield,
 } from '../shared/rules.js';
 import { lookOf } from './db.js';
@@ -31,7 +31,14 @@ export class Member {
     this.media = { mic: false };
     this.joinedAt = Date.now();
   }
-  derived(buffs) { return derive(this.char, buffs); }
+  // syncCap is set by the zone (0 in town). Above it, the hero fights as a capped copy.
+  derived(buffs) {
+    const s = syncedChar(this.char, this.syncCap || 0);
+    const d = derive(s || this.char, buffs);
+    if (s) d.sync = s.level;
+    return d;
+  }
+  get synced() { return !!this.syncCap && this.char.level > this.syncCap; }
   look() { return lookOf(this.char); }
 }
 

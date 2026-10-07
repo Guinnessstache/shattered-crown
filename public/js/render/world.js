@@ -146,7 +146,7 @@ export class World {
         obj = buildHero(e.cls || 'knight', e.look || {});
         anim = new Animator(obj, { stride: 1.7 });
         r = 0.45;
-        if (!extra.me) label = this.label(e.name, 'name');
+        if (!extra.me) label = this.label(e.sync ? `${e.name} ⇣${e.sync}` : e.name, 'name');
         break;
       }
       case 'm': {

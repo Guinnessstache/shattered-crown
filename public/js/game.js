@@ -259,7 +259,7 @@ export class Game {
         const v = W.ents.get(ev.id);
         if (!v) break;
         // Rebuild the model with new gear.
-        const desc = { ...v.e, look: ev.look, level: ev.level, x: v.x, y: v.y, rot: v.rot };
+        const desc = { ...v.e, look: ev.look, level: ev.level, sync: ev.sync, x: v.x, y: v.y, rot: v.rot };
         const keep = { x: v.x, y: v.y, rot: v.rot, hp: v.hp, hpMax: ev.hpMax, local: v.local, dead: v.dead };
         W.remove(ev.id);
         const nv = W.add(desc, { me: ev.id === this.myId });

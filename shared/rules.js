@@ -385,6 +385,41 @@ export function derive(ch, buffs = null) {
   return d;
 }
 
+// ---------------------------------------------------------------- level sync
+// On a dungeon floor, anyone more than SYNC.margin levels above its monsters fights at that cap:
+// base stats are recomputed for the cap, spent attribute points shrink in proportion, and gear
+// above the cap is scaled to what a cap-level item would roll. Skills and skill ranks are kept.
+// Synced heroes earn SYNC.xpBonus extra XP, so helping lower-level friends pays.
+export const SYNC = { margin: 2, xpBonus: 0.15 };
+export function syncCapFor(floor) { return floor > 0 ? Math.max(1, Math.round(floor * 1.5)) + SYNC.margin : 0; }
+function scaleItem(it, cap) {
+  const il = it.ilvl || 1;
+  if (il <= cap) return it;
+  const rD = (4 + cap * 1.7) / (4 + il * 1.7);
+  const rA = (3 + cap * 1.3) / (3 + il * 1.3);
+  const sc = (v, r) => (typeof v !== 'number' ? v : Number.isInteger(v) ? Math.max(1, round(v * r)) : +(v * r).toFixed(1));
+  const out = { ...it, ilvl: cap, mods: {} };
+  if (it.dmg) out.dmg = [Math.max(1, round(it.dmg[0] * rD)), Math.max(2, round(it.dmg[1] * rD))];
+  if (it.armor) out.armor = Math.max(1, round(it.armor * rA));
+  for (const [k, v] of Object.entries(it.mods || {})) out.mods[k] = sc(v, rD);
+  return out;
+}
+/** The character as it fights under a level cap, or null if it isn't above the cap. */
+export function syncedChar(ch, cap) {
+  if (!cap || ch.level <= cap) return null;
+  const C = CLASSES[ch.cls];
+  const k = (cap - 1) / Math.max(1, ch.level - 1);
+  const stats = {};
+  for (const s of Object.keys(ch.stats)) {
+    const natural = (C.base[s] || 0) + (C.grow[s] || 0) * (ch.level - 1);
+    const spent = Math.max(0, ch.stats[s] - natural);
+    stats[s] = (C.base[s] || 0) + (C.grow[s] || 0) * (cap - 1) + round(spent * k);
+  }
+  const equip = {};
+  for (const [slot, it] of Object.entries(ch.equip || {})) equip[slot] = it ? scaleItem(it, cap) : it;
+  return { ...ch, level: cap, stats, equip };
+}
+
 export function canEquip(ch, it) {
   if (!it) return 'Nothing there';
   if (ch.level < (it.req || 1)) return `Requires level ${it.req}`;

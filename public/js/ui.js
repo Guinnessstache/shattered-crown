@@ -1,5 +1,5 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
-import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS } from '/shared/rules.js';
+import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS, SYNC } from '/shared/rules.js';
 import { itemIcon, setIconClass } from './render/icons.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
@@ -275,6 +275,8 @@ export class UI {
 
   setChar(char, derived, next) {
     setIconClass(char?.cls);
+    const sb = $('#sync-badge');
+    if (sb) { sb.classList.toggle('hidden', !derived?.sync); if (derived?.sync) sb.textContent = `⇣ Synced to Lv ${derived.sync}`; }
     this.char = char; this.derived = derived; this.next = next;
     $('#pts-dot').classList.toggle('hidden', !(char.statPts > 0 || char.skillPts > 0));
     this.potions(char.potions);
@@ -340,6 +342,7 @@ export class UI {
       $('#stats-body').innerHTML = `
         <h2 style="margin-bottom:4px">${esc(ch.name)}</h2>
         <div class="muted" style="margin-bottom:10px">Level ${ch.level} ${CLASSES[ch.cls].name} · ${fmt(ch.xp)} / ${fmt(this.next)} XP · Deepest floor ${ch.maxFloor}</div>
+        ${d.sync ? `<div class="sync-note">⇣ Synced to level ${d.sync} on this floor: stats and gear are scaled down to match its monsters, skills are kept, and you earn +${Math.round(SYNC.xpBonus * 100)}% XP.</div>` : ''}
         ${ch.statPts > 0 ? `<div class="pts">${ch.statPts} attribute point${ch.statPts > 1 ? 's' : ''} to spend</div>` : ''}
         ${row('str', 'Strength', '+1.5% damage per point')}
         ${row('dex', 'Dexterity', 'Critical chance and armor')}
