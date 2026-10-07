@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { softTexture, glow, flat, common } from './materials.js';
 import { weaponMesh, shieldMesh } from './models.js';
+import { MATERIALS } from '/shared/rules.js';
+const MAT_COLORS = Object.fromEntries(Object.entries(MATERIALS).map(([k, v]) => [k, v.color]));
 
 const tmp = new THREE.Vector3();
 
@@ -204,6 +206,16 @@ export function lootMesh(e) {
       c.position.set(Math.cos(i * 2.3) * 0.12, 0.02 + i * 0.012, Math.sin(i * 2.3) * 0.12);
       c.rotation.set(Math.random() * 0.4, 0, Math.random() * 0.4);
       g.add(c);
+    }
+  } else if (e.mat) {
+    const col = new THREE.Color(MAT_COLORS[e.mat] || '#ffffff').getHex();
+    for (let i = 0; i < Math.min(3, e.n || 1); i++) {
+      const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.1 + (i === 0 ? 0.04 : 0)), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.6, roughness: 0.3, metalness: 0.2 }));
+      c.position.set((i - 1) * 0.12, 0.12, (i % 2) * 0.1); c.rotation.set(i, i * 2, 0); g.add(c);
+    }
+    if (['sigil', 'tusk', 'silk'].includes(e.mat)) {
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.2, 3.2, 8, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      beam.position.y = 1.6; g.add(beam); g.userData.beam = beam;
     }
   } else if (e.potion) {
     const col = e.potion === 'hp' ? 0xe02030 : 0x3060f0;

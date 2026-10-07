@@ -1,6 +1,6 @@
 // The running game: local hero movement (predicted), combat input, server snapshots and events.
 import { buildMap, moveCircle, TILE, T, toTile } from '/shared/map.js';
-import { SKILLS, xpToNext, MONSTERS, RARITY_COLOR } from '/shared/rules.js';
+import { SKILLS, xpToNext, MONSTERS, RARITY_COLOR, MATERIALS } from '/shared/rules.js';
 
 const SKILL_ORDER = ['cleave', 'bash', 'charge', 'warcry'];
 const PLAYER_R = 0.45;
@@ -67,6 +67,22 @@ export class Game {
     this.on('msg', (m) => { this.ui.msg(m.text, m.kind); if (m.kind === 'warn') this.sfx.play('error'); });
     this.on('shop', (d) => { if (this.ui.shopData && !document.querySelector('#shop-panel').classList.contains('hidden')) this.ui.updateShopStock(d); else this.ui.openShop(d); });
     this.on('gate', (d) => this.ui.openGate(d.max));
+    this.on('crafter', () => this.ui.openCraft());
+    this.on('mats', (d) => {
+      this.char.mats = d.mats;
+      const def = MATERIALS[d.got.mat];
+      if (def) { this.ui.msg(`+${d.got.n} ${def.name}`, def.boss ? 'good' : 'loot'); this.sfx.play(def.boss ? 'rare' : 'pickup'); }
+      this.ui.setChar(this.char, this.derived, this.next);
+    });
+    this.on('salvaged', (d) => {
+      const txt = Object.entries(d.got).map(([k, n]) => `+${n} ${MATERIALS[k]?.name}`).join(', ');
+      this.ui.msg(`${d.count ? `Salvaged ${d.count} items: ` : 'Salvaged: '}${txt}`, 'good');
+      this.sfx.play('break');
+    });
+    this.on('crafted', (d) => {
+      this.sfx.play('levelup');
+      this.ui.craftResult(`<div class="muted" style="font-size:12px;margin-bottom:4px">You crafted:</div>${this.ui.itemCard(d.item)}`);
+    });
     this.on('travel', (d) => { this.ui.center(d.text, 1400); this.sfx.play('stairs'); document.querySelector('#fade').classList.add('on'); this.input.enabled = false; });
     this.on('buff', (b) => { if (b.id === 'warcry') this.ui.msg('War Cry! Damage and armor up', 'good'); });
     this.on('chat', (c) => this.ui.chatLine(c.name, c.text));

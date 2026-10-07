@@ -1,5 +1,5 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
-import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES } from '/shared/rules.js';
+import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem } from '/shared/rules.js';
 import { itemIcon } from './render/icons.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
@@ -19,6 +19,8 @@ export class UI {
     $$('[data-close]').forEach((b) => b.addEventListener('click', () => this.closePanels()));
     $$('.sheet, .modal').forEach((m) => m.addEventListener('pointerdown', (e) => { if (e.target === m && m.id !== 'create-modal') this.closePanels(); }));
     $$('#char-panel .tab').forEach((t) => t.addEventListener('click', () => this.tab(t.dataset.tab)));
+    $$('#craft-panel [data-ctab]').forEach((t) => t.addEventListener('click', () => this.craftTab(t.dataset.ctab)));
+    $('#salvage-common-btn').addEventListener('click', () => this.h.inv({ op: 'salvageCommon' }));
     $('#inv-btn').addEventListener('click', () => this.toggle('char'));
     $('#menu-btn').addEventListener('click', () => this.toggle('menu'));
     $('#party-btn').addEventListener('click', () => this.toggle('party'));
@@ -183,7 +185,7 @@ export class UI {
   // ------------------------------------------------------------ panels
   anyOpen() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').some((m) => m.id !== 'create-modal'); }
   closePanels() {
-    for (const id of ['char-panel', 'shop-panel', 'gate-panel', 'party-panel', 'menu-panel']) $(`#${id}`).classList.add('hidden');
+    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'gate-panel', 'party-panel', 'menu-panel']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
     this.h.panelsChanged?.(false);
@@ -213,6 +215,7 @@ export class UI {
     this.xp(char.xp, next);
     if (!$('#char-panel').classList.contains('hidden')) this.renderChar();
     if (!$('#shop-panel').classList.contains('hidden') && this.shopData) this.renderShop();
+    if (this.craftSel) this.renderCraft();
   }
 
   slotHtml(it, extra = '', attrs = '') {
@@ -255,7 +258,7 @@ export class UI {
       $('#equip-grid').innerHTML = SLOTS.map((s) => `<div style="grid-area:${s}">${ch.equip[s] ? this.slotHtml(ch.equip[s], this.sel?.eq === s ? 'sel' : '', `data-eq="${s}"`) : `<button class="slot" data-eq="${s}" type="button"><span class="ph">${SLOT_PH[s]}</span></button>`}</div>`).join('');
       $('#inv-grid').innerHTML = ch.inv.map((it, i) => this.slotHtml(it, this.sel?.inv === i ? 'sel' : '', `data-inv="${i}"`)).join('');
       $('#gold-amt').textContent = fmt(ch.gold);
-      $('#pot-line').textContent = `❤ ${ch.potions.hp}  ✦ ${ch.potions.mp}`;
+      $('#pot-line').innerHTML = `❤ ${ch.potions.hp}  ✦ ${ch.potions.mp}${this.matsLine()}`;
       $$('#equip-grid [data-eq]').forEach((b) => b.addEventListener('click', () => { this.sel = { eq: b.dataset.eq }; this.renderChar(); }));
       $$('#inv-grid [data-inv]').forEach((b) => {
         b.addEventListener('click', () => { this.sel = { inv: Number(b.dataset.inv) }; this.renderChar(); });
@@ -312,6 +315,7 @@ export class UI {
     return `<div class="idet"><div class="nm" style="color:${RARITY_COLOR[it.rarity]}">${esc(it.name)}</div>
       <div class="ty">${typeName}${it.rarity[0].toUpperCase()}${it.rarity.slice(1)} ${SLOT_NAMES[it.slot]} · item level ${it.ilvl}</div>
       <ul>${lines.map((l, i) => `<li class="${i >= (it.dmg ? 2 : 0) + (it.armor ? 1 : 0) + (it.block ? 1 : 0) ? 'mod' : ''}">${esc(l)}</li>`).join('')}</ul>
+      ${it.crafted ? `<div style="font-size:12px;color:#c9a0ff;margin-top:4px">Crafted by ${esc(it.crafted)}</div>` : ''}
       <div class="req ${ch && it.req > ch.level ? 'bad' : ''}" style="font-size:12px;margin-top:4px">Requires level ${it.req} · ${price != null ? `Price <b style="color:#ffd76a">${fmt(price)}</b>` : `Sells for ${fmt(it.value)} gold`}</div>${cmp}</div>`;
   }
 
@@ -335,6 +339,60 @@ export class UI {
       $('#act-drop')?.addEventListener('click', () => { this.h.inv({ op: 'drop', idx: this.sel.inv }); this.sel = null; });
     }
   }
+
+  matsLine() {
+    const m = this.char?.mats || {};
+    const have = Object.entries(MATERIALS).filter(([k]) => m[k]);
+    return have.length ? `<span class="mats">${have.map(([k, d]) => `<span style="color:${d.color}">${d.icon} ${m[k]}</span>`).join(' · ')}</span>` : '';
+  }
+
+  // ------------------------------------------------------------ artificer (crafting & salvage)
+  openCraft() {
+    this.closePanels();
+    this.craftSel ||= { base: 'sword', recipe: 'apprentice', tab: 'craft' };
+    $('#craft-result').innerHTML = '';
+    $('#craft-panel').classList.remove('hidden');
+    this.h.panelsChanged?.(true);
+    this.renderCraft();
+    this.focusFirst($('#craft-panel'));
+  }
+  craftTab(name) { this.craftSel.tab = name; this.salvSel = null; this.renderCraft(); this.focusFirst($('#craft-panel')); }
+  renderCraft() { if (!$('#craft-panel').classList.contains('hidden')) this.keepFocus(() => this._renderCraft()); }
+  _renderCraft() {
+    const ch = this.char; const sel = this.craftSel; const m = ch.mats || {};
+    $$('#craft-panel [data-ctab]').forEach((t) => t.classList.toggle('active', t.dataset.ctab === sel.tab));
+    $$('#craft-panel [data-cbody]').forEach((b) => b.classList.toggle('hidden', b.dataset.cbody !== sel.tab));
+    $('#mat-bar').innerHTML = Object.entries(MATERIALS).map(([k, d]) => `<span class="mat-chip ${m[k] ? '' : 'zero'}" title="${esc(d.desc)}" style="color:${d.color}">${d.icon} <b>${m[k] || 0}</b> ${esc(d.name)}</span>`).join('')
+      + `<span class="mat-chip" style="color:#ffd76a">🪙 <b>${fmt(ch.gold)}</b></span>`;
+    if (sel.tab === 'craft') {
+      const NAMES = { sword: 'Sword', axe: 'Axe', mace: 'Mace', shield: 'Shield', helm: 'Helm', chest: 'Armor', gloves: 'Gloves', boots: 'Boots', ring: 'Ring', amulet: 'Amulet' };
+      $('#craft-bases').innerHTML = CRAFT_BASES.map((b) => {
+        const preview = { slot: BASES[b].slot, kind: BASES[b].kind, tier: Math.min(5, Math.floor((ch.level - 1) / 6)), rarity: 'magic' };
+        return `<button type="button" data-base="${b}" class="${sel.base === b ? 'sel' : ''}"><img src="${itemIcon(preview)}" alt="">${NAMES[b]}</button>`;
+      }).join('');
+      $('#craft-recipes').innerHTML = Object.entries(RECIPES).map(([k, r]) => {
+        const gold = r.gold(ch.level);
+        const lines = Object.entries(r.cost).map(([mk, n]) => `<span class="${(m[mk] || 0) < n ? 'short' : ''}" style="${(m[mk] || 0) >= n ? `color:${MATERIALS[mk].color}` : ''}">${MATERIALS[mk].icon} ${m[mk] || 0}/${n} ${esc(MATERIALS[mk].name)}</span>`);
+        if (r.trophy) { const t = Math.max(m.tusk || 0, m.silk || 0); lines.push(`<span class="${t < r.trophy ? 'short' : ''}">🦷 ${t}/${r.trophy} boss trophy</span>`); }
+        lines.push(`<span class="${ch.gold < gold ? 'short' : ''}">🪙 ${fmt(gold)} gold</span>`);
+        const can = Object.entries(r.cost).every(([mk, n]) => (m[mk] || 0) >= n) && ch.gold >= gold && (!r.trophy || Math.max(m.tusk || 0, m.silk || 0) >= r.trophy);
+        return `<button type="button" class="recipe ${can ? '' : 'cant'}" data-recipe="${k}"><div class="rn c-${r.rarity}">${r.name} ${esc(({ sword: 'Sword', axe: 'Axe', mace: 'Mace', shield: 'Shield', helm: 'Helm', chest: 'Armor', gloves: 'Gloves', boots: 'Boots', ring: 'Ring', amulet: 'Amulet' })[sel.base])}</div><p>${esc(r.desc)} Item level ${ch.level + r.ilvlBonus}.</p><div class="cost">${lines.join('<br>')}</div></button>`;
+      }).join('');
+      $$('#craft-bases [data-base]').forEach((b) => b.addEventListener('click', () => { sel.base = b.dataset.base; this.renderCraft(); }));
+      $$('#craft-recipes [data-recipe]').forEach((b) => b.addEventListener('click', () => this.h.inv({ op: 'craft', recipe: b.dataset.recipe, base: sel.base })));
+    } else {
+      $('#salvage-grid').innerHTML = ch.inv.map((it, i) => this.slotHtml(it, this.salvSel === i ? 'sel' : '', `data-salv="${i}"`)).join('');
+      $$('#salvage-grid [data-salv]').forEach((b) => b.addEventListener('click', () => { const i = Number(b.dataset.salv); if (ch.inv[i]) { this.salvSel = i; this.renderCraft(); } }));
+      const it = this.salvSel != null ? ch.inv[this.salvSel] : null;
+      if (it) {
+        const y = salvageYieldPreview(it);
+        $('#salvage-detail').innerHTML = `${this.itemCard(it)}<div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn small gold" id="salvage-btn" type="button">Salvage</button><span class="muted" style="font-size:12px">Gives about ${y}</span></div>`;
+        $('#salvage-btn').addEventListener('click', () => { this.h.inv({ op: 'salvage', idx: this.salvSel }); this.salvSel = null; });
+      } else $('#salvage-detail').innerHTML = '<div class="muted" style="font-size:13px">Pick an item from your pack.</div>';
+      $('#salvage-common-btn').disabled = !ch.inv.some((x) => x?.rarity === 'common');
+    }
+  }
+  craftResult(html) { $('#craft-result').innerHTML = html; }
 
   // ------------------------------------------------------------ shop
   openShop(data) {
@@ -407,7 +465,7 @@ export class UI {
   // A stable selector for the focused control, so focus survives a panel redraw.
   focusKey(el) {
     if (!el || !this.openPanelEl()?.contains(el)) return null;
-    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab']) {
+    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv']) {
       if (el.dataset[k] !== undefined) return { attr: k, val: el.dataset[k], n: el.dataset.n };
     }
     return el.id ? { id: el.id } : null;
@@ -486,6 +544,11 @@ export class UI {
       if (k?.attr === 'sell') this.shopSel = { sell: Number(k.val) };
       if (this.shopSel?.buy != null && this.shopData.stock[this.shopSel.buy]) { this.h.inv({ op: 'buy', i: this.shopSel.buy }); this.shopSel = null; }
       else if (this.shopSel?.sell != null && ch.inv[this.shopSel.sell]) { this.h.inv({ op: 'sell', idx: this.shopSel.sell }); this.shopSel = null; }
+    } else if (root.id === 'craft-panel') {
+      const k = this.focusKey(document.activeElement);
+      if (this.craftSel.tab === 'craft') { if (k?.attr === 'recipe') this.h.inv({ op: 'craft', recipe: k.val, base: this.craftSel.base }); else this.padPress(); }
+      else if (k?.attr === 'salv' && this.char.inv[Number(k.val)]) { this.h.inv({ op: 'salvage', idx: Number(k.val) }); this.salvSel = null; }
+      else this.padPress();
     } else this.padPress();
   }
 
@@ -500,12 +563,18 @@ export class UI {
   // LB / RB: switch tabs on the character panel.
   padTab(step) {
     const root = this.openPanelEl();
+    if (root?.id === 'craft-panel') { this.craftTab(this.craftSel.tab === 'craft' ? 'salvage' : 'craft'); return; }
     if (root?.id !== 'char-panel') return;
     const tabs = ['gear', 'stats', 'skills'];
     const i = (tabs.indexOf(this.curTab || 'gear') + step + tabs.length) % tabs.length;
     this.tab(tabs[i]);
     this.focusFirst(root);
   }
+}
+
+function salvageYieldPreview(it) {
+  const ranges = { common: [['scrap', '2–3']], magic: [['scrap', '1–2'], ['dust', '1–2']], rare: [['dust', '2–3'], ['shard', '1–2']], legendary: [['shard', '2–3'], ['core', '1+']] }[it.rarity] || [];
+  return ranges.map(([k, n]) => `<span style="color:${MATERIALS[k].color}">${n} ${MATERIALS[k].name}</span>`).join(' + ');
 }
 
 function confirmDestroy(it) { return window.confirm(`Destroy ${it.name}? This can't be undone.`); }

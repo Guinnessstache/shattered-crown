@@ -7,7 +7,7 @@ import { setMaterialQuality } from './materials.js';
 import { buildHero, buildMonster, buildMerchant, blobShadow, Animator } from './models.js';
 import * as P from './props.js';
 import { FX, projectileMesh, lootMesh } from './fx.js';
-import { MONSTERS } from '/shared/rules.js';
+import { MONSTERS, MATERIALS } from '/shared/rules.js';
 
 const LIGHTS = { high: 8, medium: 5, low: 3 };
 const tmpV = new THREE.Vector3();
@@ -146,8 +146,8 @@ export class World {
       }
       case 'l': {
         obj = lootMesh(e);
-        const text = e.gold ? `${e.gold} gold` : e.potion ? (e.potion === 'hp' ? 'Health Potion' : 'Mana Potion') : e.item?.name;
-        const cls = e.gold ? 'gold' : e.potion ? 'common' : e.item?.rarity;
+        const text = e.gold ? `${e.gold} gold` : e.potion ? (e.potion === 'hp' ? 'Health Potion' : 'Mana Potion') : e.mat ? `${e.n > 1 ? `${e.n}× ` : ''}${MATERIALS[e.mat]?.name || e.mat}` : e.item?.name;
+        const cls = e.gold ? 'gold' : e.potion ? 'common' : e.mat ? `mat${MATERIALS[e.mat]?.boss ? ' boss' : ''}` : e.item?.rarity;
         label = this.label(text, cls, true);
         label.dataset.id = e.id;
         v.drop = 0;

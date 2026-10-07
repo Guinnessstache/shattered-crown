@@ -194,6 +194,8 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
         if (d.cmd === 'tp' && p) { p.x = Number(d.x); p.y = Number(d.y); member.socket.emit('correct', { x: p.x, y: p.y }); }
         if (d.cmd === 'xp') party.grantXp(member.pid, Number(d.n) || 100);
         if (d.cmd === 'gold') { member.char.gold += Number(d.n) || 1000; party.sendChar(member.pid); }
+        if (d.cmd === 'mats') { const m = member.char.mats ||= {}; for (const [k, v] of Object.entries(d.mats || {})) m[k] = (m[k] || 0) + (Number(v) || 0); member.socket.emit('mats', { mats: m, got: { mat: Object.keys(d.mats || {})[0] || 'scrap', n: 0 } }); }
+        if (d.cmd === 'killboss' && p) { const z = party.zone; for (const e of z.ents.values()) if (e.k === 'm' && e.boss && e.state !== 'dead') { p.x = e.x + 1.5; p.y = e.y; member.socket.emit('correct', { x: p.x, y: p.y }); z.killMonster(e, p); } }
         return null;
       }));
     }

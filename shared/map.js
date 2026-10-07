@@ -355,7 +355,7 @@ const TOWN = [
   '#T....,,,,,,,,FFF,,,,,,,,,....T..#',
   '#.....,,,,,,,,,,,,,,,,,,,,.......#',
   '#..HHHH,,,,,,,,P,,,,,,,,HHHHH....#',
-  '#..HHHH..,,,,,,,,,,,,,..HHHHH..T.#',
+  '#..HHHH..,,,,,,,,,,,C,..HHHHH..T.#',
   '#..HHHH...L,,,,,,,,,L...HHHHH....#',
   '#T.........,,,,,,,,,.........T...#',
   '#....TT.....,,,,,,,.....TT.......#',
@@ -376,7 +376,7 @@ export function generateTown() {
       const c = TOWN[y][x];
       const i = y * w + x;
       const wx = toWorld(x); const wy = toWorld(y);
-      map.ground[i] = ',DMSPLF'.includes(c) ? 1 : 0;
+      map.ground[i] = ',DMSPLFC'.includes(c) ? 1 : 0;
       if (c === '#') map.tiles[i] = T.WALL;
       else if (c === 'H' || c === 'F' || c === 'T' || c === 'W') map.tiles[i] = T.BLOCK;
       else map.tiles[i] = T.FLOOR;
@@ -385,6 +385,7 @@ export function generateTown() {
       if (c === 'P') map.start = { x: wx, y: wy };
       if (c === 'M') map.npcs.push({ id: 'merchant', type: 'merchant', name: 'Brannoc the Trader', x: wx, y: wy, rot: Math.PI / 2 });
       if (c === 'S') map.npcs.push({ id: 'smith', type: 'smith', name: 'Hilda the Smith', x: wx, y: wy, rot: -Math.PI / 2 });
+      if (c === 'C') map.npcs.push({ id: 'crafter', type: 'crafter', name: 'Orlen the Artificer', x: wx, y: wy, rot: Math.PI });
       // Rectangular blocks: houses and the fountain become single props with a footprint.
       if ((c === 'H' || c === 'F') && !seen.has(i)) {
         let x2 = x; while (TOWN[y][x2 + 1] === c) x2++;

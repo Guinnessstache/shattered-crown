@@ -196,6 +196,34 @@
     </div>
   </div>
 
+  <!-- Artificer: crafting & salvage -->
+  <div id="craft-panel" class="sheet hidden">
+    <div class="sheet-inner panel">
+      <header>
+        <div class="tabs">
+          <button class="tab active" data-ctab="craft" type="button">Craft</button>
+          <button class="tab" data-ctab="salvage" type="button">Salvage</button>
+        </div>
+        <button class="btn small ghost" data-close type="button">✕</button>
+      </header>
+      <div id="mat-bar" class="mat-bar"></div>
+      <div data-cbody="craft">
+        <h3>1. Choose what to make</h3>
+        <div id="craft-bases" class="craft-bases"></div>
+        <h3 style="margin-top:12px">2. Choose the quality</h3>
+        <div id="craft-recipes" class="craft-recipes"></div>
+      </div>
+      <div data-cbody="salvage" class="hidden">
+        <p class="muted" style="margin:0 0 8px;font-size:13px">Break items down into materials. Better items give rarer materials.</p>
+        <div id="salvage-grid" class="inv-grid"></div>
+        <div id="salvage-detail" class="item-detail"></div>
+        <button id="salvage-common-btn" class="btn small" type="button" style="margin-top:8px">Salvage all common items</button>
+      </div>
+      <div id="craft-result" class="item-detail"></div>
+      <div class="pad-hints"><b>A</b> Select · <b>X</b> Craft / Salvage · <b>LB</b>/<b>RB</b> Tabs · <b>B</b> Close</div>
+    </div>
+  </div>
+
   <!-- Dungeon gate -->
   <div id="gate-panel" class="modal hidden">
     <div class="panel">

@@ -4,7 +4,7 @@ import { Zone } from './zone.js';
 import { RNG } from '../shared/rng.js';
 import {
   PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, canEquip, randomItem, makeItem,
-  potionPrice, MAX_POTIONS, INV_SIZE, SLOTS, BASES,
+  potionPrice, MAX_POTIONS, INV_SIZE, SLOTS, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield,
 } from '../shared/rules.js';
 import { lookOf } from './db.js';
 
@@ -22,6 +22,7 @@ function newCode() {
 export class Member {
   constructor({ pid, socket, accountId, charId, char }) {
     Object.assign(this, { pid, socket, accountId, charId, char });
+    char.mats ||= {}; // heroes made before crafting existed
     this.dirty = false;
     this.hp = null; this.mp = null;
     this.shops = null;
@@ -226,6 +227,51 @@ export class Party {
         ch.gold -= cost; ch.potions[kind] += n;
         break;
       }
+      case 'salvage': {
+        if (this.nearNpc(pid) !== 'crafter') return 'Find the artificer to salvage items';
+        if (!validIdx(idx) || !inv[idx]) return 'Nothing there';
+        const got = salvageYield(inv[idx]);
+        for (const [k, n] of Object.entries(got)) ch.mats[k] = (ch.mats[k] || 0) + n;
+        inv[idx] = null;
+        this.emitTo(pid, 'salvaged', { got });
+        break;
+      }
+      case 'salvageCommon': {
+        if (this.nearNpc(pid) !== 'crafter') return 'Find the artificer to salvage items';
+        const got = {}; let count = 0;
+        inv.forEach((it, i) => {
+          if (!it || it.rarity !== 'common') return;
+          for (const [k, n] of Object.entries(salvageYield(it))) { got[k] = (got[k] || 0) + n; ch.mats[k] = (ch.mats[k] || 0) + n; }
+          inv[i] = null; count++;
+        });
+        if (!count) return 'No common items in your pack';
+        this.emitTo(pid, 'salvaged', { got, count });
+        break;
+      }
+      case 'craft': {
+        if (this.nearNpc(pid) !== 'crafter') return 'Find the artificer to craft';
+        const r = RECIPES[a.recipe]; const base = String(a.base);
+        if (!r || !CRAFT_BASES.includes(base)) return 'Unknown recipe';
+        for (const [k, n] of Object.entries(r.cost)) if ((ch.mats[k] || 0) < n) return `Need ${n} ${MATERIALS[k].name}`;
+        let trophy = null;
+        if (r.trophy) {
+          trophy = ['tusk', 'silk'].filter((k) => (ch.mats[k] || 0) >= r.trophy).sort((x, y) => (ch.mats[y] || 0) - (ch.mats[x] || 0))[0];
+          if (!trophy) return 'Needs a boss trophy (Gravemaw\'s Tusk or Broodmother\'s Silk)';
+        }
+        const gold = r.gold(ch.level);
+        if (ch.gold < gold) return `Need ${gold} gold`;
+        const free = inv.findIndex((x) => !x);
+        if (free < 0) return 'Your pack is full';
+        for (const [k, n] of Object.entries(r.cost)) ch.mats[k] -= n;
+        if (trophy) ch.mats[trophy] -= r.trophy;
+        ch.gold -= gold;
+        const rng = new RNG(randomInt(2 ** 31));
+        const it = makeItem(rng, base, Math.max(1, ch.level + r.ilvlBonus), r.rarity);
+        it.crafted = ch.name;
+        inv[free] = it;
+        this.emitTo(pid, 'crafted', { item: it });
+        break;
+      }
       default: return 'Unknown action';
     }
     m.dirty = true;
@@ -237,8 +283,9 @@ export class Party {
   nearNpc(pid) {
     const p = this.zone?.players.get(pid);
     if (!p || this.zone.map.kind !== 'town') return null;
-    for (const n of this.zone.map.npcs) if (Math.hypot(n.x - p.x, n.y - p.y) < 5) return n.id;
-    return null;
+    let best = null; let bd = 5;
+    for (const n of this.zone.map.npcs) { const d = Math.hypot(n.x - p.x, n.y - p.y); if (d < bd) { bd = d; best = n.id; } }
+    return best;
   }
 
   potionPrices(ch) { return { hp: potionPrice('hp', ch.level), mp: potionPrice('mp', ch.level) }; }
@@ -261,6 +308,7 @@ export class Party {
   openShop(pid, npc) {
     const m = this.members.get(pid);
     if (!m) return;
+    if (npc === 'crafter') { this.emitTo(pid, 'crafter', {}); return; }
     const stock = this.stockFor(m)[npc] || [];
     this.emitTo(pid, 'shop', { npc, stock: stock.map((s) => ({ ...s, price: s.value * 4 })), potions: npc === 'merchant' ? this.potionPrices(m.char) : null });
   }

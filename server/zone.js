@@ -3,7 +3,7 @@
 // (client-side prediction) and the server checks those moves.
 import { buildMap, moveCircle, lineOfSight, distanceField, toTile, TILE, isBossFloor } from '../shared/map.js';
 import { RNG, hashSeed } from '../shared/rng.js';
-import { MONSTERS, SKILLS, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS } from '../shared/rules.js';
+import { MONSTERS, SKILLS, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
 
 const TICK = 1 / 20;
 const PLAYER_R = 0.45;
@@ -80,7 +80,7 @@ export class Zone {
       case 'm': return { id: e.id, k: 'm', type: e.type, x: r1(e.x), y: r1(e.y), rot: r2(e.rot), hp: e.hp, hpMax: e.hpMax, elite: e.elite, boss: e.boss, name: e.name, level: e.level, dead: e.state === 'dead' };
       case 'b': return { id: e.id, k: 'b', type: e.type, x: r1(e.x), y: r1(e.y) };
       case 'c': return { id: e.id, k: 'c', x: e.x, y: e.y, rot: e.rot, open: e.open, boss: e.boss };
-      case 'l': return { id: e.id, k: 'l', x: r1(e.x), y: r1(e.y), gold: e.gold || 0, potion: e.potion || null, item: e.item || null };
+      case 'l': return { id: e.id, k: 'l', x: r1(e.x), y: r1(e.y), gold: e.gold || 0, potion: e.potion || null, mat: e.mat || null, n: e.n || 0, item: e.item || null };
       case 'x': return { id: e.id, k: 'x', kind: e.kind, x: r1(e.x), y: r1(e.y), vx: r2(e.vx), vy: r2(e.vy) };
       default: return null;
     }
@@ -297,7 +297,7 @@ export class Zone {
       if (Math.hypot(p.x - m.x, p.y - m.y) > 60) continue;
       this.party.grantXp(p.pid, Math.round(m.xp * xpShare));
       p.member.char.kills = (p.member.char.kills || 0) + 1;
-      this.rollLoot(p, m.x, m.y, m.boss ? 'boss' : m.elite ? 'elite' : 'mob');
+      this.rollLoot(p, m.x, m.y, m.boss ? 'boss' : m.elite ? 'elite' : 'mob', m);
     }
     if (m.boss) {
       this.bossAlive = [...this.ents.values()].some((e) => e.k === 'm' && e.boss && e.state !== 'dead');
@@ -314,18 +314,21 @@ export class Zone {
     for (const q of this.players.values()) if (Math.hypot(q.x - b.x, q.y - b.y) < 30) this.rollLoot(q, b.x, b.y, 'breakable');
   }
 
-  rollLoot(p, x, y, source) {
+  rollLoot(p, x, y, source, mob = null) {
     const rng = this.rng;
     const floor = Math.max(1, this.spec.floor);
     const drops = [];
     const gf = 1 + (p.stats.goldFind || 0) / 100;
     const gold = () => Math.max(1, Math.round(rng.int(3, 9) * (1 + floor * 0.4) * gf));
     if (source === 'mob') {
+      if (rng.chance(0.06)) drops.push({ mat: 'scrap', n: rng.int(1, 2) });
       if (rng.chance(0.42)) drops.push({ gold: gold() });
       if (rng.chance(0.11)) drops.push({ item: randomItem(rng, floor + rng.int(0, 2), 0) });
       if (rng.chance(0.07)) drops.push({ potion: rng.chance(0.7) ? 'hp' : 'mp' });
     } else if (source === 'elite') {
       drops.push({ gold: gold() * 3 });
+      drops.push({ mat: 'scrap', n: rng.int(1, 3) });
+      if (rng.chance(0.4)) drops.push({ mat: 'dust', n: 1 });
       if (rng.chance(0.75)) drops.push({ item: randomItem(rng, floor + rng.int(1, 3), 1) });
       if (rng.chance(0.3)) drops.push({ item: randomItem(rng, floor + rng.int(1, 3), 1) });
       if (rng.chance(0.3)) drops.push({ potion: 'hp' });
@@ -333,7 +336,12 @@ export class Zone {
       drops.push({ gold: gold() * 10 });
       for (let i = 0; i < 3; i++) drops.push({ item: randomItem(rng, floor + 3, 2) });
       drops.push({ potion: 'hp' }, { potion: 'mp' });
+      // Boss-only crafting materials
+      drops.push({ mat: 'sigil', n: 1 });
+      const trophy = BOSS_TROPHY[mob?.type];
+      if (trophy) drops.push({ mat: trophy, n: rng.chance(0.35) ? 2 : 1 });
     } else if (source === 'breakable') {
+      if (rng.chance(0.25)) drops.push({ mat: 'scrap', n: 1 });
       if (rng.chance(0.45)) drops.push({ gold: Math.ceil(gold() * 0.6) });
       if (rng.chance(0.12)) drops.push({ potion: rng.chance(0.65) ? 'hp' : 'mp' });
       if (rng.chance(0.05)) drops.push({ item: randomItem(rng, floor, 0) });
@@ -374,6 +382,11 @@ export class Zone {
   takeLoot(p, e) {
     const ch = p.member.char;
     if (e.gold) { ch.gold += e.gold; this.party.emitTo(p.pid, 'gold', { gold: ch.gold, got: e.gold }); }
+    else if (e.mat && MATERIALS[e.mat]) {
+      ch.mats ||= {};
+      ch.mats[e.mat] = (ch.mats[e.mat] || 0) + e.n;
+      this.party.emitTo(p.pid, 'mats', { mats: ch.mats, got: { mat: e.mat, n: e.n } });
+    }
     else if (e.potion) {
       if (ch.potions[e.potion] >= MAX_POTIONS) { this.party.emitTo(p.pid, 'msg', { text: 'Potion belt is full', kind: 'warn' }); return; }
       ch.potions[e.potion]++;
@@ -427,7 +440,8 @@ export class Zone {
     }
     if (m.kind === 'dungeon' && m.entry && near(m.entry, 2.6)) { this.party.requestTravel(pid, { kind: 'town' }); return; }
     if (m.kind === 'town' && m.exit && near(m.exit, 4)) { this.party.openGate(pid); return; }
-    for (const n of m.npcs) if (near(n, 3.5)) { this.party.openShop(pid, n.id); return; }
+    const npc = m.npcs.map((n) => [n, Math.hypot(n.x - p.x, n.y - p.y)]).filter(([, d]) => d <= 3.5).sort((a, b) => a[1] - b[1])[0];
+    if (npc) { this.party.openShop(pid, npc[0].id); return; }
   }
 
   // ------------------------------------------------------------ monsters

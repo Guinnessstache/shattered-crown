@@ -178,6 +178,7 @@ export function newCharacter(name, cls = 'knight') {
     skills: { cleave: 1, bash: 0, charge: 0, warcry: 0 }, skillPts: 0,
     equip, inv: new Array(INV_SIZE).fill(null),
     potions: { hp: 4, mp: 2 },
+    mats: {},
     maxFloor: 1, kills: 0, deaths: 0, playTime: 0,
   };
 }
@@ -262,3 +263,37 @@ export function monsterStats(type, floor, { elite = false, partySize = 1 } = {})
     speed: d.speed * (elite ? 1.1 : 1),
   };
 }
+
+// ---------------------------------------------------------------- crafting
+// Materials stack in the character's material pouch (ch.mats), not the pack.
+export const MATERIALS = {
+  scrap: { name: 'Iron Scrap', color: '#b8b0a4', icon: '⛓', desc: 'Salvaged from common gear and broken barrels.' },
+  dust: { name: 'Arcane Dust', color: '#6aa8ff', icon: '✧', desc: 'Salvaged from magic items.' },
+  shard: { name: 'Shadow Shard', color: '#ffd84a', icon: '◆', desc: 'Salvaged from rare items.' },
+  core: { name: 'Ember Core', color: '#ff8a2a', icon: '✹', desc: 'Salvaged from legendary items.' },
+  sigil: { name: "Guardian's Sigil", color: '#e05aff', icon: '⚜', desc: 'Only dropped by floor guardians (bosses).', boss: true },
+  tusk: { name: "Gravemaw's Tusk", color: '#f0e6c8', icon: '🦷', desc: 'Only dropped by Gravemaw the Ogre.', boss: true },
+  silk: { name: "Broodmother's Silk", color: '#a8ffb0', icon: '🕸', desc: 'Only dropped by the Broodmother.', boss: true },
+};
+export const BOSS_TROPHY = { ogre: 'tusk', broodmother: 'silk' };
+
+// What breaking an item down gives you.
+export function salvageYield(it, rng) {
+  const r = () => (rng ? rng.next() : Math.random());
+  const n = (a, b) => a + Math.floor(r() * (b - a + 1));
+  const bonus = Math.floor((it.ilvl || 1) / 12); // deeper gear gives a little more
+  switch (it.rarity) {
+    case 'legendary': return { shard: n(2, 3), core: 1 + bonus };
+    case 'rare': return { dust: n(2, 3) + bonus, shard: n(1, 2) };
+    case 'magic': return { scrap: n(1, 2), dust: n(1, 2) + bonus };
+    default: return { scrap: n(2, 3) + bonus };
+  }
+}
+
+// Craftable bases (what you pick) and the quality tiers (what it costs and how good it rolls).
+export const CRAFT_BASES = ['sword', 'axe', 'mace', 'shield', 'helm', 'chest', 'gloves', 'boots', 'ring', 'amulet'];
+export const RECIPES = {
+  apprentice: { name: 'Apprentice', rarity: 'magic', ilvlBonus: 0, cost: { scrap: 6, dust: 3 }, gold: (l) => 40 + l * 12, desc: 'A magic item with 1–2 random bonuses.' },
+  master: { name: 'Master', rarity: 'rare', ilvlBonus: 2, cost: { scrap: 10, dust: 6, shard: 3 }, gold: (l) => 150 + l * 30, desc: 'A rare item with 3–4 random bonuses.' },
+  mythic: { name: 'Guardian-forged', rarity: 'legendary', ilvlBonus: 3, cost: { shard: 4, core: 2, sigil: 1 }, trophy: 1, gold: (l) => 500 + l * 60, desc: 'A legendary item with 5 strong random bonuses. Needs a boss trophy (tusk or silk).' },
+};
