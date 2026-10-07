@@ -27,6 +27,8 @@ export class MailUI {
       $(`#${id}`).addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter' && id === 'mail-to') { e.preventDefault(); this.find(); } });
     }
     $('#mail-find').addEventListener('click', () => this.find());
+    // Typing a different name drops the hero picked before.
+    $('#mail-to').addEventListener('input', () => { const d = this.draft; if (d.to && d.to.name.toLowerCase() !== $('#mail-to').value.trim().toLowerCase()) { d.to = null; this.render(); } });
     $('#mail-gold').addEventListener('input', () => this.renderCost());
     $('#mail-send').addEventListener('click', () => this.send());
   }
@@ -104,7 +106,13 @@ export class MailUI {
   }
   async send() {
     const d = this.draft;
-    if (!d.to) { this.ui.msg('Pick who the letter is for (type a name and press Find)', 'warn'); return; }
+    if (!d.to) {
+      // Just typed a name: look it up. One hero with that name gets the letter; several, pick one.
+      const name = $('#mail-to').value.trim();
+      if (name.length < 2) { this.ui.msg('Type who the letter is for', 'warn'); $('#mail-to').focus(); return; }
+      await this.find();
+      if (!d.to) { if (this.picks.length > 1) this.ui.msg(`Several heroes are called ${name}. Pick one, then press Send`, 'warn'); return; }
+    }
     const r = await this.act({ op: 'send', to: d.to.id, subject: $('#mail-subject').value, body: $('#mail-body').value, items: d.att, gold: Math.floor(Number($('#mail-gold').value) || 0) });
     if (r.error) return;
     this.ui.h.sfx?.('gold');
@@ -199,7 +207,6 @@ export class MailUI {
       ? `${this.ui.itemCard(pi)}<div class="bank-actions"><button class="btn gold small" id="mail-attach" type="button">Attach to letter</button></div>`
       : `<div class="muted" style="font-size:13px">${d.att.length}/${MAIL.maxItems} attached. Click an item twice to attach it${this.ui.source === 'pad' ? ', or press X' : ''}. The postage is ${MAIL.postage}g plus ${MAIL.perItem}g per item.</div>`;
     $('#mail-attach')?.addEventListener('click', () => this.toggleAttach(d.packSel));
-    $('#mail-send').disabled = !d.to;
     $('#mail-send').textContent = d.to ? `Send to ${d.to.name}` : 'Send';
     this.renderCost();
   }

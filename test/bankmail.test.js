@@ -112,6 +112,13 @@ test('bank and mail', async () => {
     assert.ok((await call(b, 'mail', { op: 'delete', id: letter.id })).ok);
     assert.equal((await call(b, 'mail', { op: 'inbox' })).rows.length, 0);
 
+    // a plain letter, no items or gold
+    r = await call(b, 'mail', { op: 'send', to: a2.charId, subject: 'Hi', body: 'Just saying hi' });
+    assert.ok(r.ok, r.error);
+    inbox = await call(a2, 'mail', { op: 'inbox' });
+    assert.equal(inbox.rows[0].body, 'Just saying hi'); assert.equal(inbox.rows[0].items.length, 0);
+    assert.ok((await call(a2, 'mail', { op: 'delete', id: inbox.rows[0].id })).ok);
+
     // send back: the letter returns to the sender with its attachments
     const kidItem = b.char.inv.findIndex((x) => x?.name === axe.name);
     r = await call(b, 'mail', { op: 'send', to: a1.charId, subject: 'Thanks', items: [kidItem] });

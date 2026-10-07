@@ -70,15 +70,21 @@ export function attachToBone(bone, obj, { y = [0, 1, 0], z = [0, 0, 1], offset =
   return obj;
 }
 
-const subClipCache = new WeakMap();
-function upperBody(clip) {
-  let m = subClipCache.get(clip);
+// Clips split into the upper body (spine, arms, head) and the rest (hips, legs). Running uses
+// both halves; an attack while moving replaces only the upper half, so the legs keep running and
+// the arms swing at full strength (instead of half-blending with the run).
+const subClipCache = { upper: new WeakMap(), lower: new WeakMap() };
+function part(clip, upper) {
+  const cache = subClipCache[upper ? 'upper' : 'lower'];
+  let m = cache.get(clip);
   if (!m) {
-    m = new THREE.AnimationClip(`${clip.name}_upper`, clip.duration, clip.tracks.filter((t) => UPPER.test(t.name.split('.')[0])));
-    subClipCache.set(clip, m);
+    m = new THREE.AnimationClip(`${clip.name}_${upper ? 'upper' : 'lower'}`, clip.duration, clip.tracks.filter((t) => UPPER.test(t.name.split('.')[0]) === upper));
+    cache.set(clip, m);
   }
   return m;
 }
+const upperBody = (clip) => part(clip, true);
+const lowerBody = (clip) => part(clip, false);
 
 export class SkinnedAnimator {
   constructor(model) {
@@ -94,9 +100,10 @@ export class SkinnedAnimator {
     this.loco = {};
     for (const n of ['idle', 'walk', 'run']) {
       if (!this.clips[n]) continue;
-      const a = this.mixer.clipAction(this.clips[n]);
-      a.play(); a.setEffectiveWeight(n === 'idle' ? 1 : 0);
-      this.loco[n] = a;
+      const lo = this.mixer.clipAction(lowerBody(this.clips[n]));
+      const up = this.mixer.clipAction(upperBody(this.clips[n]));
+      for (const a of [lo, up]) { a.play(); a.setEffectiveWeight(n === 'idle' ? 1 : 0); }
+      this.loco[n] = { lo, up, each: (f) => { f(lo); f(up); } };
     }
     this.mixer.update(Math.random() * 3); // don't march in lockstep
     this.shot = null; this.deathAction = null;
@@ -120,7 +127,7 @@ export class SkinnedAnimator {
     a.timeScale = ((spec.to - spec.from) * full.duration) / len;
     a.setEffectiveWeight(1);
     a.fadeIn(0.06).play();
-    this.shot = { action: a, t: 0, dur: len, full: !moving };
+    this.shot = { action: a, t: 0, dur: len, full: !moving, clip: full };
     this.action = { name, t: 0, dur: len };
   }
 
@@ -147,7 +154,7 @@ export class SkinnedAnimator {
       const a = this.mixer.clipAction(upperBody(this.clips.hit));
       a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true;
       a.timeScale = 1.4; a.setEffectiveWeight(0.8); a.fadeIn(0.05).play();
-      this.shot = { action: a, t: 0, dur: 0.4 };
+      this.shot = { action: a, t: 0, dur: 0.4, weight: 0.8 };
     }
   }
 
@@ -158,7 +165,7 @@ export class SkinnedAnimator {
     const a = this.mixer.clipAction(this.clips.death);
     a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = 1.3;
     a.setEffectiveWeight(1); a.fadeIn(0.12).play();
-    for (const l of Object.values(this.loco)) l.fadeOut(0.12);
+    for (const l of Object.values(this.loco)) l.each((x) => x.fadeOut(0.12));
     this.deathAction = a;
   }
 
@@ -166,7 +173,7 @@ export class SkinnedAnimator {
     this.dead = false; this.deadT = 0;
     this.deathAction?.fadeOut(0.2); this.deathAction = null;
     this.p.body.position.y = 0;
-    for (const l of Object.values(this.loco)) { l.reset().play(); }
+    for (const l of Object.values(this.loco)) l.each((x) => { x.reset().fadeIn(0.2).play(); });
   }
 
   update(dt) {
@@ -188,16 +195,25 @@ export class SkinnedAnimator {
     if (sp > 0.25) {
       if (sp < 2.2) { const k = (sp - 0.25) / 1.95; wIdle = 1 - k; wWalk = k; } else { const k = Math.min(1, (sp - 2.2) / 1.6); wIdle = 0; wWalk = 1 - k; wRun = k; }
     }
-    const S = this.shot;
-    // A full-body attack owns the whole skeleton while it plays.
-    const target = S?.full && !S.charge ? 0 : 1;
-    this.locoMul = (this.locoMul ?? 1) + (target - (this.locoMul ?? 1)) * Math.min(1, dt * 18);
-    const lw = this.locoMul;
+    let S = this.shot;
+    // Started an attack standing still, then began to move: hand the legs back to the run.
+    if (S?.full && S.action && sp > 0.6) {
+      const a = this.mixer.clipAction(upperBody(S.clip));
+      a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true;
+      a.time = S.action.time; a.timeScale = S.action.timeScale; a.setEffectiveWeight(1);
+      a.play(); S.action.stop();
+      S.action = a; S.full = false;
+    }
+    // A full-body attack owns the whole skeleton; any attack owns the upper body while it plays.
+    const ease = (cur, to) => (cur ?? 1) + (to - (cur ?? 1)) * Math.min(1, dt * 18);
+    this.loLo = ease(this.loLo, S?.full && !S.charge ? 0 : 1);
+    this.loUp = ease(this.loUp, S && !S.charge ? 1 - (S.weight ?? 1) : 1);
     if (S?.charge) { wIdle = 0; wWalk = 0; wRun = 1; }
     const L = this.loco;
-    if (L.idle) L.idle.setEffectiveWeight(wIdle * lw);
-    if (L.walk) { L.walk.setEffectiveWeight(wWalk * lw); L.walk.timeScale = Math.max(0.6, sp / this.native.walk); }
-    if (L.run) { L.run.setEffectiveWeight(wRun * lw); L.run.timeScale = S?.charge ? 2.2 : Math.max(0.7, sp / this.native.run); }
+    const set = (l, w, ts) => { if (!l) return; l.lo.setEffectiveWeight(w * this.loLo); l.up.setEffectiveWeight(w * this.loUp); if (ts) { l.lo.timeScale = ts; l.up.timeScale = ts; } };
+    set(L.idle, wIdle);
+    set(L.walk, wWalk, Math.max(0.6, sp / this.native.walk));
+    set(L.run, wRun, S?.charge ? 2.2 : Math.max(0.7, sp / this.native.run));
     if (S) {
       S.t += dt;
       if (this.action) this.action.t = S.t;
