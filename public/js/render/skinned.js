@@ -209,3 +209,31 @@ export class SkinnedAnimator {
     this.mixer.update(dt);
   }
 }
+
+// Recolour a character's own outfit to match the equipped chest item: texels near the outfit's
+// accent hue (and saturated enough not to be skin) are shifted to the item's colour, keeping their
+// shading. accent = { hue (0..1), range, minSat }. color = item colour (hex) or null to leave as is.
+export function tintOutfit(hero, accent, color) {
+  if (!accent || color == null) return;
+  const c = new THREE.Color(color); const hsl = {}; c.getHSL(hsl);
+  for (const m of hero.userData.mats) {
+    if (!m.map) continue;
+    m.userData.tint = { uAccent: { value: accent.hue }, uRange: { value: accent.range }, uMinSat: { value: accent.minSat }, uHue: { value: hsl.h }, uSat: { value: hsl.s }, uAmt: { value: hsl.s < 0.12 ? 0.7 : 1 } };
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, m.userData.tint);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+uniform float uAccent; uniform float uRange; uniform float uMinSat; uniform float uHue; uniform float uSat; uniform float uAmt;
+vec3 sc_rgb2hsv(vec3 c) { vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0); vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g)); vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r)); float d = q.x - min(q.w, q.y); float e = 1.0e-10; return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); }
+vec3 sc_hsv2rgb(vec3 c) { vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www); return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y); }`)
+        .replace('#include <map_fragment>', `#include <map_fragment>
+{ vec3 hsv = sc_rgb2hsv(diffuseColor.rgb);
+  float dh = abs(fract(hsv.x - uAccent + 0.5) - 0.5);
+  float k = (1.0 - smoothstep(uRange * 0.6, uRange, dh)) * smoothstep(uMinSat, uMinSat + 0.15, hsv.y) * uAmt;
+  vec3 to = sc_hsv2rgb(vec3(uHue, mix(hsv.y * 0.25, hsv.y, clamp(uSat * 1.6, 0.0, 1.0)), hsv.z));
+  diffuseColor.rgb = mix(diffuseColor.rgb, to, k); }`);
+    };
+    m.customProgramCacheKey = () => 'sc-outfit-tint';
+    m.needsUpdate = true;
+  }
+}

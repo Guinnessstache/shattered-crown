@@ -108,6 +108,14 @@ python tools/blender/build_mixamo_hero.py -- art-source/mixamo public/models her
 - **Gear:** the game's own weapons and shields attach to the hand and forearm bones (`GRIP` in models.js; the axe grip was measured from the Brute's original axe).
 - **Loading:** the hero models load in the background behind the title screen.
 
+**Armor on the new models.** `public/js/render/armorfit.js` lifts the tiered armor pieces from the older Blender heroes onto the Mixamo bones: helm, pauldrons, bracers, gloves, thigh plates, greaves and boots.
+- **Fit:** measured automatically. The old body part is compared with the Mixamo body: bone lengths, and how far the skinned vertices sit from each bone. Each piece is then rotated into the T-pose, placed using the length ratio, and sized by the thickness ratio. Growth is capped where clothing or hair overstate the body.
+- **Helms:** placed relative to the eye line (the eye bone where the rig has one).
+- **Materials:** pieces use each item's own palette.
+- **Draw calls:** everything on the same bone and material is merged, about 30 meshes per hero.
+- **Outfit tint:** the Knight's red cloth and the Alchemist's purple robes take the chest item's color (a shader hue shift that leaves skin and metal alone).
+- **Not yet:** chest plates, which would need real skinning.
+
 **Viewer and toggle.** `/dev/anim.html?cls=druid` previews each class. The menu option "Motion-captured hero models" switches back to the old ones.
 
 ## Admin console

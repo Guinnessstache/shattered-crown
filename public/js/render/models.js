@@ -7,7 +7,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { common, flat, glow, blobShadowMaterial } from './materials.js';
 import { forgeItem, gearPalette } from './forge.js';
-import { buildSkinnedHero, attachToBone } from './skinned.js';
+import { buildSkinnedHero, attachToBone, tintOutfit } from './skinned.js';
+import { fitArmor } from './armorfit.js';
 
 const G = {
   box: (w, h, d) => new THREE.BoxGeometry(w, h, d),
@@ -633,8 +634,27 @@ function skinnedHero(cls, look) {
     const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
     parts.shield = attachToBone(parts.foreL, shd, GRIP.shield);
   }
+  // Equipped helm, shoulders, arms and legs: the class's tiered armour pieces, fitted to this body.
+  const old = glbCache.get(`hero_${cls}`) || glbCache.get('hero_knight');
+  if (old) parts.armor = fitArmor({ key, hero: h, bones: parts.bones, oldScene: old, look, slotOf: PIECE_SLOT, dress: dressPiece });
+  // The outfit's main cloth takes the chest armour's colour (magic and better chests have one).
+  if (look.chest?.col != null) tintOutfit(h, OUTFIT_ACCENT[cls], look.chest.col);
   return h;
 }
+// Materials for a lifted armour piece: the game's textured materials, then the item's own palette.
+function dressPiece(obj, L) {
+  texturize(obj);
+  const pal = gearPalette(L);
+  obj.traverse((m) => {
+    if (!m.isMesh) return;
+    const nm = (m.userData.srcMat || '').replace(/\.\d+$/, '');
+    if (SLOT_MATS.includes(nm)) m.material = pal[nm];
+  });
+}
+// Each character's dominant cloth colour (hue 0..1): the Knight's red tabard and hood, the
+// Alchemist's purple robes. Skin and leather are left alone (Berserker and Druid have no cloth
+// accent saturated enough to recolour safely).
+const OUTFIT_ACCENT = { knight: { hue: 0.0, range: 0.05, minSat: 0.5 }, alchemist: { hue: 0.88, range: 0.09, minSat: 0.3 } };
 const CLASS_WEAPON = { knight: 'sword', berserker: 'greataxe', alchemist: 'staff', druid: 'staff' };
 // How the game's weapons and shields sit on the Mixamo bones, in the rest pose (T-pose, palms
 // down, facing +Z, character's left = +X). Swords and axes come out of the fist along the thumb
