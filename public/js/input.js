@@ -28,25 +28,29 @@ export class Input {
   typing() { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'); }
 
   bindKeyboard(canvas) {
+    this.held = new Set();
     addEventListener('keydown', (e) => {
       if (this.typing()) return;
       const k = e.key.toLowerCase();
       if (e.repeat && !['w', 'a', 's', 'd'].includes(k)) return;
-      // Handhelds in "desktop mode" turn D-pad/buttons into key presses too; don't let those
-      // knock the game out of controller mode.
-      if (this.padRecent(400)) return;
-      this.setSource('keyboard');
-      this.keys.add(k);
-      const map = { '1': 'skill0', '2': 'skill1', '3': 'skill2', '4': 'skill3', q: 'hp', r: 'mp', e: 'use', f: 'use', i: 'inventory', c: 'character', k: 'skills', tab: 'map', m: 'map', escape: 'menu', enter: 'chat', v: 'ptt', ' ': 'attack' };
-      const act = map[k];
-      if (act) {
-        if (k === 'tab' || k === ' ') e.preventDefault();
-        if (act === 'attack') this.attackHeld = true;
-        this.h.onAction(act, true);
+      if (k === 'tab' || k === ' ' || (k === 'escape' && document.fullscreenElement)) e.preventDefault();
+      // Handhelds in "desktop mode" turn controller buttons into key presses (B → Esc, D-pad →
+      // arrows …). The fake key can arrive a moment before we see the button on the controller,
+      // so while the controller is in use, wait a beat and drop keys that came with a button press.
+      if (this.source === 'pad') {
+        this.held.add(k);
+        setTimeout(() => {
+          if (this.padRecent(350)) return;
+          this.keyDown(k);
+          if (!this.held.has(k)) { this.keys.delete(k); if (k === ' ') this.attackHeld = false; } // already let go
+        }, 70);
+        return;
       }
+      this.keyDown(k);
     });
     addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
+      this.held.delete(k);
       this.keys.delete(k);
       if (k === ' ') this.attackHeld = false;
       if (k === 'v') this.h.onAction('ptt', false);
@@ -64,8 +68,9 @@ export class Input {
     // The right button captures the cursor while held; the left button just drags.
     canvas.addEventListener('mousedown', (e) => {
       if (e.sourceCapabilities?.firesTouchEvents || this.source === 'touch') return;
-      // A handheld mapping the A button to a mouse click: ignore the fake click.
-      if (this.source === 'pad' && this.padRecent(400)) return;
+      // While on the controller, clicks never count (handhelds map A/B to mouse clicks, and a
+      // right-click would grab the mouse). Moving a real mouse switches back first.
+      if (this.source === 'pad') { e.preventDefault(); return; }
       this.setSource('keyboard');
       this.mouse.x = e.clientX; this.mouse.y = e.clientY;
       if (e.button === 0) this.lmb = { x: e.clientX, y: e.clientY };
@@ -107,6 +112,16 @@ export class Input {
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => { this.h.onCamera(0, Math.sign(e.deltaY) * 1.2); e.preventDefault(); }, { passive: false });
+  }
+
+  keyDown(k) {
+    this.setSource('keyboard');
+    this.keys.add(k);
+    const map = { '1': 'skill0', '2': 'skill1', '3': 'skill2', '4': 'skill3', q: 'hp', r: 'mp', e: 'use', f: 'use', i: 'inventory', c: 'character', k: 'skills', tab: 'map', m: 'map', escape: 'menu', enter: 'chat', v: 'ptt', ' ': 'attack' };
+    const act = map[k];
+    if (!act) return;
+    if (act === 'attack') this.attackHeld = true;
+    this.h.onAction(act, true);
   }
 
   // Was the controller touched in the last `ms` milliseconds?

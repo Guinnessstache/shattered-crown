@@ -264,6 +264,10 @@ async function enterFullscreen() {
       if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
       else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
     }
+    // Capture Esc, the Windows key and other system shortcuts while full screen, so a handheld
+    // that maps a controller button to one of them can't drop out of full screen or open other
+    // windows. (Chrome/Edge: hold Esc to leave full screen.)
+    try { await navigator.keyboard?.lock?.(); } catch { /* not supported */ }
     await screen.orientation?.lock?.('landscape');
   } catch { /* not allowed here (e.g. iPhone Safari) */ }
   checkOrientation();
@@ -276,7 +280,9 @@ function checkOrientation() {
 }
 addEventListener('resize', checkOrientation);
 screen.orientation?.addEventListener?.('change', checkOrientation);
-document.addEventListener('fullscreenchange', checkOrientation);
+document.addEventListener('fullscreenchange', () => { if (!fsElement()) navigator.keyboard?.unlock?.(); checkOrientation(); });
+// No browser right-click menu anywhere in the game (handhelds often map B to a right-click).
+document.addEventListener('contextmenu', (e) => { if (!/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) e.preventDefault(); });
 $('#fs-btn').addEventListener('click', () => (fsElement() ? exitFullscreen() : enterFullscreen()));
 $('#rotate-fs').addEventListener('click', () => enterFullscreen());
 $('#ios-tip-x').addEventListener('click', () => { $('#ios-tip').classList.add('hidden'); store.set('iosTip', '1'); });
