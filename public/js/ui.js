@@ -1,5 +1,5 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
-import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS, SYNC } from '/shared/rules.js';
+import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS, SYNC, classBlocks } from '/shared/rules.js';
 import { itemIcon, setIconClass } from './render/icons.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
@@ -290,8 +290,11 @@ export class UI {
     if (this.ah) this.renderAh();
   }
 
+  // Can't wear it: level too low, or the class doesn't take it (Berserker + shield).
+  cant(it, ch = this.char) { return !!(ch && it && (it.req > ch.level || classBlocks(ch.cls, it))); }
+
   slotHtml(it, extra = '', attrs = '') {
-    const cls = it ? `slot ${it.rarity}${this.char && it.req > this.char.level ? ' cant' : ''}` : 'slot';
+    const cls = it ? `slot ${it.rarity}${this.cant(it) ? ' cant' : ''}` : 'slot';
     const au = it ? itemAura(it) : null;
     const hex = au?.col != null ? `#${au.col.toString(16).padStart(6, '0')}` : null;
     const style = hex ? ` style="box-shadow: inset 0 0 14px ${hex}55, inset 0 0 2px ${hex}"` : '';
@@ -302,6 +305,7 @@ export class UI {
   lootMark(it) {
     if (!this.char || !it) return '';
     if (it.req > this.char.level) return '<i class="mk bad" title="Level too high">✕</i>';
+    if (classBlocks(this.char.cls, it)) return `<i class="mk bad" title="${CLASSES[this.char.cls].name}s can't use this">✕</i>`;
     if (!this.char.equip[it.slot]) return '<i class="mk up" title="Empty slot">▲</i>';
     return this.isUpgrade(it) ? '<i class="mk up" title="Upgrade">▲</i>' : '';
   }
@@ -319,7 +323,7 @@ export class UI {
   }
 
   isUpgrade(it) {
-    if (!this.char || !it || it.req > this.char.level) return false;
+    if (!this.char || !it || this.cant(it)) return false;
     const cur = this.char.equip[it.slot];
     return score(it) > score(cur) * 1.05;
   }
@@ -392,7 +396,7 @@ export class UI {
       <div class="ty">${typeName}${it.rarity[0].toUpperCase()}${it.rarity.slice(1)} ${SLOT_NAMES[it.slot]} · item level ${it.ilvl}</div>
       <ul>${lines.map((l, i) => { const el = Object.values(ELEMENTS).find((e) => l.includes(`${e.name === 'Frost' ? 'Cold' : e.name} Damage`)); return `<li class="${i >= (it.dmg ? 2 : 0) + (it.armor ? 1 : 0) + (it.block ? 1 : 0) ? 'mod' : ''}"${el ? ` style="color:${el.css}"` : ''}>${el ? `${el.icon} ` : ''}${esc(l)}</li>`; }).join('')}</ul>
       ${it.crafted ? `<div style="font-size:12px;color:#c9a0ff;margin-top:4px">Crafted by ${esc(it.crafted)}</div>` : ''}
-      <div class="req ${ch && it.req > ch.level ? 'bad' : ''}" style="font-size:12px;margin-top:4px">Requires level ${it.req} · ${price != null ? `Price <b style="color:#ffd76a">${fmt(price)}</b>` : `Sells for ${fmt(it.value)} gold`}</div>${cmp}</div>`;
+      <div class="req ${ch && it.req > ch.level ? 'bad' : ''}" style="font-size:12px;margin-top:4px">Requires level ${it.req} · ${price != null ? `Price <b style="color:#ffd76a">${fmt(price)}</b>` : `Sells for ${fmt(it.value)} gold`}</div>${ch && classBlocks(ch.cls, it) ? `<div class="req bad" style="font-size:12px">${CLASSES[ch.cls].name}s can't use shields</div>` : ''}${cmp}</div>`;
   }
 
   renderDetail() {
@@ -407,7 +411,7 @@ export class UI {
       const it = ch.inv[this.sel.inv];
       if (!it) { box.innerHTML = ''; return; }
       box.innerHTML = `${this.itemCard(it)}<div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="btn small gold" id="act-equip" type="button" ${it.req > ch.level ? 'disabled' : ''}>Equip</button>
+        <button class="btn small gold" id="act-equip" type="button" ${this.cant(it, ch) ? 'disabled' : ''}>Equip</button>
         ${this.h.nearShop() ? `<button class="btn small" id="act-sell" type="button">Sell (${fmt(it.value)}g)</button>` : ''}
         <button class="btn small ghost" id="act-drop" type="button">Drop</button></div>`;
       $('#act-equip')?.addEventListener('click', () => this.h.inv({ op: 'equip', idx: this.sel.inv }));
@@ -452,7 +456,7 @@ export class UI {
         if (r.trophy) { const t = Math.max(m.tusk || 0, m.silk || 0); lines.push(`<span class="${t < r.trophy ? 'short' : ''}">🦷 ${t}/${r.trophy} boss trophy</span>`); }
         lines.push(`<span class="${ch.gold < gold ? 'short' : ''}">🪙 ${fmt(gold)} gold</span>`);
         const can = Object.entries(r.cost).every(([mk, n]) => (m[mk] || 0) >= n) && ch.gold >= gold && (!r.trophy || Math.max(m.tusk || 0, m.silk || 0) >= r.trophy);
-        return `<button type="button" class="recipe ${can ? '' : 'cant'}" data-recipe="${k}"><div class="rn c-${r.rarity}">${r.name} ${esc(({ sword: 'Sword', axe: 'Axe', mace: 'Mace', shield: 'Shield', helm: 'Helm', chest: 'Armor', gloves: 'Gloves', boots: 'Boots', ring: 'Ring', amulet: 'Amulet' })[sel.base])}</div><p>${esc(r.desc)} Item level ${ch.level + r.ilvlBonus}.</p><div class="cost">${lines.join('<br>')}</div></button>`;
+        return `<button type="button" class="recipe ${can ? '' : 'cant'}" data-recipe="${k}"><div class="rn c-${r.rarity}">${r.name} ${esc(NAMES[sel.base])}</div><p>${esc(r.desc)} Item level ${ch.level + r.ilvlBonus}.</p><div class="cost">${lines.join('<br>')}</div></button>`;
       }).join('');
       $$('#craft-bases [data-base]').forEach((b) => b.addEventListener('click', () => { sel.base = b.dataset.base; this.renderCraft(); }));
       $$('#craft-recipes [data-recipe]').forEach((b) => b.addEventListener('click', () => this.h.inv({ op: 'craft', recipe: b.dataset.recipe, base: sel.base })));
@@ -534,7 +538,7 @@ export class UI {
     const row = (it, attrs, cls, sub, price) => `<button type="button" class="ah-row ${cls}" ${attrs}><img src="${itemIcon(it)}" alt=""><span class="nm c-${it.rarity}">${esc(it.name)}${this.isUpgrade(it) ? ' <span style="color:#7fe39a">▲</span>' : ''}</span><span class="pr">${price}</span><span class="sub">${sub}</span></button>`;
     if (A.tab === 'browse') {
       $('#ah-slot').value = A.slot; $('#ah-rarity').value = A.rarity; $('#ah-sort').value = A.sort; $('#ah-usable').checked = A.usable;
-      $('#ah-list').innerHTML = A.rows.length ? A.rows.map((r, i) => row(r.item, `data-ahrow="${i}"`, `${A.sel === i ? 'sel' : ''}${r.item.req > ch.level ? ' cant' : ''}`,
+      $('#ah-list').innerHTML = A.rows.length ? A.rows.map((r, i) => row(r.item, `data-ahrow="${i}"`, `${A.sel === i ? 'sel' : ''}${this.cant(r.item, ch) ? ' cant' : ''}`,
         `iLvl ${r.item.ilvl} · Req ${r.item.req} · ${r.mine ? 'your listing' : esc(r.seller)}`, `${fmt(r.price)}g`)).join('')
         : `<div class="ah-empty">${A.loading ? 'Searching…' : 'Nothing for sale matches. Try other filters, or check back later.'}</div>`;
       $$('#ah-list [data-ahrow]').forEach((b) => b.addEventListener('click', () => { A.sel = Number(b.dataset.ahrow); this.renderAh(); }));
@@ -610,7 +614,7 @@ export class UI {
       $('#shop-buy').addEventListener('click', () => { this.h.inv({ op: 'buy', i: this.shopSel.buy }); this.shopSel = null; });
     } else if (this.shopSel?.sell != null && ch.inv[this.shopSel.sell]) {
       const it = ch.inv[this.shopSel.sell];
-      box.innerHTML = `${this.itemCard(it)}<div style="margin-top:8px;display:flex;gap:8px"><button class="btn small" id="shop-sell-btn" type="button">Sell for ${fmt(it.value)} gold</button><button class="btn small gold" id="shop-eq-btn" type="button" ${it.req > ch.level ? 'disabled' : ''}>Equip</button></div>`;
+      box.innerHTML = `${this.itemCard(it)}<div style="margin-top:8px;display:flex;gap:8px"><button class="btn small" id="shop-sell-btn" type="button">Sell for ${fmt(it.value)} gold</button><button class="btn small gold" id="shop-eq-btn" type="button" ${this.cant(it, ch) ? 'disabled' : ''}>Equip</button></div>`;
       $('#shop-sell-btn').addEventListener('click', () => { this.h.inv({ op: 'sell', idx: this.shopSel.sell }); this.shopSel = null; });
       $('#shop-eq-btn').addEventListener('click', () => this.h.inv({ op: 'equip', idx: this.shopSel.sell }));
     } else box.innerHTML = '<div class="muted" style="font-size:13px">Pick something to buy, or an item from your pack to sell.</div>';

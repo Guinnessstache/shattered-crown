@@ -99,8 +99,9 @@ class PgStore {
     return (await this.q('INSERT INTO auctions (seller_char, seller_name, item, price, slot, rarity, req, ilvl) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
       [a.sellerChar, a.sellerName, a.item, a.price, a.item.slot, a.item.rarity, a.item.req || 1, a.item.ilvl || 1]))[0].id;
   }
-  async ahSearch({ slot, rarity, maxReq, sort, offset = 0, limit = 20 }) {
+  async ahSearch({ slot, rarity, maxReq, noSlot, sort, offset = 0, limit = 20 }) {
     const where = ["status = 'active'"]; const args = [];
+    if (noSlot) { args.push(noSlot); where.push(`slot <> $${args.length}`); }
     if (slot) { args.push(slot); where.push(`slot = $${args.length}`); }
     if (rarity) { args.push(rarity); where.push(`rarity = $${args.length}`); }
     if (maxReq) { args.push(maxReq); where.push(`req <= $${args.length}`); }
@@ -194,8 +195,8 @@ class FileStore {
     const r = { id: this.id(), seller_char: a.sellerChar, seller_name: a.sellerName, item: JSON.parse(JSON.stringify(a.item)), price: a.price, slot: a.item.slot, rarity: a.item.rarity, req: a.item.req || 1, ilvl: a.item.ilvl || 1, status: 'active', created: new Date().toISOString() };
     this.d.auctions.push(r); await this.flush(); return r.id;
   }
-  async ahSearch({ slot, rarity, maxReq, sort, offset = 0, limit = 20 }) {
-    const rows = this.d.auctions.filter((a) => a.status === 'active' && (!slot || a.slot === slot) && (!rarity || a.rarity === rarity) && (!maxReq || a.req <= maxReq));
+  async ahSearch({ slot, rarity, maxReq, noSlot, sort, offset = 0, limit = 20 }) {
+    const rows = this.d.auctions.filter((a) => a.status === 'active' && (!noSlot || a.slot !== noSlot) && (!slot || a.slot === slot) && (!rarity || a.rarity === rarity) && (!maxReq || a.req <= maxReq));
     const cmp = { priceDesc: (a, b) => b.price - a.price, newest: (a, b) => (b.created > a.created ? 1 : -1), level: (a, b) => b.ilvl - a.ilvl || a.price - b.price }[sort] || ((a, b) => a.price - b.price);
     return rows.sort((a, b) => cmp(a, b) || b.id - a.id).slice(offset, offset + limit + 1).map((r) => ahRow(JSON.parse(JSON.stringify(r))));
   }

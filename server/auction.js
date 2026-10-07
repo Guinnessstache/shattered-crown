@@ -2,7 +2,7 @@
 // Listings live in the database (not in a party), so they're shared by every player on the server.
 // The item leaves the seller's pack when listed and the hero is saved straight away; a sale is a
 // single conditional database update, so the same listing can never be sold twice.
-import { AUCTION, INV_SIZE, SLOTS } from '../shared/rules.js';
+import { AUCTION, CLASSES, INV_SIZE, SLOTS } from '../shared/rules.js';
 
 const RARITIES = ['common', 'magic', 'rare', 'legendary'];
 
@@ -24,6 +24,7 @@ async function run(db, m, a) {
         slot: SLOTS.includes(a.slot) ? a.slot : null,
         rarity: RARITIES.includes(a.rarity) ? a.rarity : null,
         maxReq: a.usable ? ch.level : null,
+        noSlot: a.usable && CLASSES[ch.cls]?.noShield ? 'offhand' : null,
         sort: String(a.sort || ''),
         offset: page * AUCTION.pageSize, limit: AUCTION.pageSize,
       });

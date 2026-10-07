@@ -37,6 +37,7 @@ export const CLASSES = {
     starter: { weapon: 'greataxe', chest: 'chest' },
     starterName: 'Notched Greataxe',
     power: 'str',
+    noShield: true, // fights two-handed; shields don't suit him
   },
   alchemist: {
     icon: '⚗',
@@ -430,7 +431,13 @@ export function syncedChar(ch, cap) {
 export function canEquip(ch, it) {
   if (!it) return 'Nothing there';
   if (ch.level < (it.req || 1)) return `Requires level ${it.req}`;
+  if (classBlocks(ch.cls, it)) return `${CLASSES[ch.cls].name}s can't use shields`;
   return null;
+}
+
+// Gear a class can never wear (the Berserker takes no shield).
+export function classBlocks(cls, it) {
+  return !!(it && it.slot === 'offhand' && CLASSES[cls]?.noShield);
 }
 
 // Damage reduction from armor against a monster of a given level.

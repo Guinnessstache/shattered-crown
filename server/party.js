@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { Zone } from './zone.js';
 import { RNG } from '../shared/rng.js';
 import {
-  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, isTwoHanded, randomItem, makeItem,
+  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, classBlocks, isTwoHanded, randomItem, makeItem,
   potionPrice, MAX_POTIONS, INV_SIZE, SLOTS, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield,
 } from '../shared/rules.js';
 import { lookOf } from './db.js';
@@ -25,6 +25,14 @@ export class Member {
     char.mats ||= {}; // heroes made before crafting existed
     // A duel was cut short by a server restart: give the stake back.
     if (char.duelEscrow) { char.gold += char.duelEscrow; delete char.duelEscrow; }
+    // Gear the class can't use any more (a Berserker's old shield) goes back to the pack, or is sold if it's full.
+    for (const slot of Object.keys(char.equip || {})) {
+      const it = char.equip[slot];
+      if (!classBlocks(char.cls, it)) continue;
+      const free = (char.inv || []).findIndex((x) => !x);
+      if (free >= 0) char.inv[free] = it; else char.gold += it.value || 0;
+      char.equip[slot] = null;
+    }
     this.dirty = false;
     this.hp = null; this.mp = null;
     this.shops = null;
@@ -318,7 +326,7 @@ export class Party {
     const lvl = Math.max(1, m.char.level);
     const ilvl = () => Math.max(1, lvl + rng.int(-1, 1));
     const smith = []; const merchant = [];
-    for (let i = 0; i < 8; i++) smith.push(randomItem(rng, ilvl(), 0, ['weapon', 'offhand', 'head', 'chest', 'hands', 'feet']));
+    for (let i = 0; i < 8; i++) smith.push(randomItem(rng, ilvl(), 0, ['weapon', ...(CLASSES[m.char.cls]?.noShield ? [] : ['offhand']), 'head', 'chest', 'hands', 'feet']));
     smith.forEach((it, i) => { if (it.rarity === 'rare' || it.rarity === 'legendary') smith[i] = makeItem(rng, it.base, it.ilvl, 'magic'); });
     for (let i = 0; i < 4; i++) merchant.push(randomItem(rng, ilvl(), 0, ['ring', 'amulet']));
     merchant.forEach((it, i) => { if (it.rarity === 'common') merchant[i] = makeItem(rng, it.base, it.ilvl, 'magic'); if (it.rarity === 'legendary') merchant[i] = makeItem(rng, it.base, it.ilvl, 'rare'); });

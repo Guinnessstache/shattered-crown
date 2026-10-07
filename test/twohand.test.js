@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { io as connect } from 'socket.io-client';
-import { newCharacter, makeItem, derive, isTwoHanded, itemLines, BASES } from '../shared/rules.js';
+import { newCharacter, makeItem, derive, isTwoHanded, itemLines, BASES, canEquip } from '../shared/rules.js';
 import { RNG } from '../shared/rng.js';
 
 test('two-handed bases hit harder, reach further and say so', () => {
@@ -17,6 +17,9 @@ test('two-handed bases hit harder, reach further and say so', () => {
   const b = newCharacter('Brak', 'berserker');
   assert.equal(b.equip.weapon.base, 'greataxe', 'berserkers start with a great axe');
   assert.ok(derive(b).reach >= 2.7);
+  const sh = makeItem(rng, 'shield', 1, 'common');
+  assert.match(canEquip(b, sh) || '', /can't use shields/, 'berserkers take no shield');
+  assert.equal(canEquip(newCharacter('Gar', 'knight'), sh), null);
 });
 
 test('equipping a two-hander moves the shield to the pack, and back', async () => {
