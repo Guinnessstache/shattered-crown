@@ -574,3 +574,6 @@ body.pad-on, body.pad-on * { cursor: none !important; }
 .mail-read .atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .mail-read .atts .slot { width: 52px; height: 52px; }
 .mail-read .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* messages shown above an open window (the HUD sits underneath windows) */
+.toasts { position: fixed; top: calc(10px + var(--safe-t)); left: 0; right: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }

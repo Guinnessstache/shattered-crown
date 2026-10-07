@@ -147,7 +147,12 @@ export class UI {
   msg(text, kind = 'info') {
     const el = document.createElement('div');
     el.className = `msg ${kind}`; el.textContent = text;
-    const box = $('#messages'); box.appendChild(el);
+    // With a window open the HUD is underneath it, so show the message above the window instead.
+    let box = $('#messages');
+    if (this.anyOpen()) {
+      box = $('#toasts') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'toasts', className: 'toasts' }));
+    }
+    box.appendChild(el);
     while (box.children.length > 5) box.firstChild.remove();
     setTimeout(() => el.remove(), 3300);
   }

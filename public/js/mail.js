@@ -113,6 +113,10 @@ export class MailUI {
       await this.find();
       if (!d.to) { if (this.picks.length > 1) this.ui.msg(`Several heroes are called ${name}. Pick one, then press Send`, 'warn'); return; }
     }
+    const gold = Math.floor(Number($('#mail-gold').value) || 0);
+    const need = postage(d.att.length) + gold;
+    if ((this.ui.char?.gold ?? 0) < need) { this.ui.msg(`You need ${fmt(need)} gold to send this (${postage(d.att.length)} postage${gold ? ` + ${fmt(gold)} sent` : ''})`, 'warn'); this.ui.h.sfx?.('error'); return; }
+    if (!$('#mail-body').value.trim() && !$('#mail-subject').value.trim() && !d.att.length && !gold) { this.ui.msg('Write a message first', 'warn'); $('#mail-body').focus(); return; }
     const r = await this.act({ op: 'send', to: d.to.id, subject: $('#mail-subject').value, body: $('#mail-body').value, items: d.att, gold: Math.floor(Number($('#mail-gold').value) || 0) });
     if (r.error) return;
     this.ui.h.sfx?.('gold');
@@ -132,7 +136,8 @@ export class MailUI {
     const n = this.draft.att.length; const gold = Math.max(0, Math.floor(Number($('#mail-gold').value) || 0));
     const fee = postage(n); const ch = this.ui.char;
     const total = fee + gold;
-    $('#mail-cost').innerHTML = `Postage ${fee}g${gold ? ` + ${fmt(gold)}g sent = <b style="color:${ch && ch.gold < total ? '#ff8a8a' : '#ffd76a'}">${fmt(total)}g</b>` : ''} · you have ${fmt(ch?.gold || 0)}g`;
+    const short = ch && ch.gold < total;
+    $('#mail-cost').innerHTML = `Postage ${fee}g${gold ? ` + ${fmt(gold)}g sent = <b style="color:${short ? '#ff8a8a' : '#ffd76a'}">${fmt(total)}g</b>` : ''} · you have <span style="color:${short ? '#ff8a8a' : 'inherit'}">${fmt(ch?.gold || 0)}g</span>${short ? ' · <b style="color:#ff8a8a">not enough gold</b>' : ''}`;
   }
 
   // ---------------------------------------------------------------- drawing

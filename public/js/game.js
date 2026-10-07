@@ -7,6 +7,8 @@ const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)
 
 const PLAYER_R = 0.45;
 const now = () => performance.now() / 1000;
+// Skills that stop you while their animation plays: [seconds, movement multiplier].
+const ROOT = { cleave: [0.5, 0], bash: [0.4, 0], warcry: [0.55, 0], whirlwind: [0.8, 0.55] };
 
 export class Game {
   constructor({ socket, world, input, ui, sfx, music, voice, me }) {
@@ -460,6 +462,8 @@ export class Game {
     this.sendPos(true);
     this.socket.emit('skill', { id, rot });
     this.me.anim.play(sk.anim || id);
+    // Whole-body moves hold you in place while they play (Whirlwind lets you drift).
+    const R = ROOT[id]; if (R) this.root = { until: t + R[0], mul: R[1] };
     this.skillFx(this.me, id, rot, true);
     if (id === 'leap') {
       const dist = sk.dist(rank);
@@ -560,7 +564,8 @@ export class Game {
       }
       const mag = Math.hypot(mx, my);
       const slowed = this.status?.some((x) => x.id === 'slow' && x.until > t);
-      const slow = (t < this.swingUntil ? 0.3 : 1) * (slowed ? SLOW_MULT : 1);
+      const rooted = this.root && t < this.root.until ? this.root.mul : 1;
+      const slow = Math.min(t < this.swingUntil ? 0.3 : 1, rooted) * (slowed ? SLOW_MULT : 1);
       const speed = this.derived.moveSpeed * Math.min(1, mag) * slow;
       if (mag > 0.05) {
         const np = moveCircle(this.map, me.x, me.y, (mx / mag) * speed * dt, (my / mag) * speed * dt, PLAYER_R);

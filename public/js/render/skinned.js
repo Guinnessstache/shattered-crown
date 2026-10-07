@@ -27,7 +27,10 @@ const SHOT = {
 };
 // When a model has no clip for an action, fall back to a close one.
 const ALIAS = { attack: 'swing', frenzy: 'swing', whirlwind: 'cleave', cleave: 'whirlwind', slam: 'leap', throw: 'swing', shoot: 'throw', bash: 'swing', warcry: 'cast', leap: 'swing' };
-const VARIANTS = { swing: 3, cast: 3 }; // swing0..2, cast0..2 when the model has them
+const VARIANTS = { swing: 3, cast: 3 };
+// Moves that use the whole body (a spin, a shove, a roar) play in full even while moving; the
+// game holds the hero (nearly) still for them, see ROOT in game.js.
+const FULL_BODY = new Set(['cleave', 'whirlwind', 'bash', 'warcry']); // swing0..2, cast0..2 when the model has them
 
 export function buildSkinnedHero(src, clips, height, { speeds = null, shots = null } = {}) {
   const root = new THREE.Group();
@@ -116,7 +119,8 @@ export class SkinnedAnimator {
     if (!clip) return;
     const spec = this.shots[clip] || { from: 0.05, to: 0.9, min: 0.6 };
     const full = this.clips[clip];
-    const moving = this.speed > 0.6;
+    const lock = FULL_BODY.has(name);
+    const moving = this.speed > 0.6 && !lock;
     const c = moving ? upperBody(full) : full;
     const len = Math.max(spec.min, (dur || 0.4) * 1.6);
     const a = this.mixer.clipAction(c);
@@ -127,7 +131,7 @@ export class SkinnedAnimator {
     a.timeScale = ((spec.to - spec.from) * full.duration) / len;
     a.setEffectiveWeight(1);
     a.fadeIn(0.06).play();
-    this.shot = { action: a, t: 0, dur: len, full: !moving, clip: full };
+    this.shot = { action: a, t: 0, dur: len, full: !moving, clip: full, lock };
     this.action = { name, t: 0, dur: len };
   }
 
@@ -197,7 +201,7 @@ export class SkinnedAnimator {
     }
     let S = this.shot;
     // Started an attack standing still, then began to move: hand the legs back to the run.
-    if (S?.full && S.action && sp > 0.6) {
+    if (S?.full && !S.lock && S.action && sp > 0.6) {
       const a = this.mixer.clipAction(upperBody(S.clip));
       a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true;
       a.time = S.action.time; a.timeScale = S.action.timeScale; a.setEffectiveWeight(1);
