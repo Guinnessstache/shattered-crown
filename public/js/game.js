@@ -400,11 +400,9 @@ export class Game {
 
   aimRot() {
     const me = this.me;
-    if (this.input.source === 'keyboard' && this.input.mouse.inside) {
-      const g = this.world.groundAt(this.input.mouse.x, this.input.mouse.y);
-      if (g) return Math.atan2(g.x - me.x, g.z - me.y);
-    }
-    // Aim assist: nearest monster in front, then nearest anywhere close.
+    // The mouse only drives menus and the camera, so attacks never aim at the cursor (it's
+    // often resting behind the hero, which spun them around). Aim assist: nearest monster in
+    // front, then nearest anywhere close; otherwise keep facing the way you're going.
     let best = null; let bs = 1e9;
     const face = me.rot;
     for (const v of this.world.ents.values()) {
