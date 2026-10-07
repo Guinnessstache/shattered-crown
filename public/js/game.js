@@ -68,6 +68,7 @@ export class Game {
     this.on('shop', (d) => { if (this.ui.shopData && !document.querySelector('#shop-panel').classList.contains('hidden')) this.ui.updateShopStock(d); else this.ui.openShop(d); });
     this.on('gate', (d) => this.ui.openGate(d.max));
     this.on('crafter', () => this.ui.openCraft());
+    this.on('auction', () => this.ui.openAuction());
     this.on('mats', (d) => {
       this.char.mats = d.mats;
       const def = MATERIALS[d.got.mat];

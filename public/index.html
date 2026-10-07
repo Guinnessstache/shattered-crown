@@ -224,6 +224,52 @@
     </div>
   </div>
 
+  <!-- Auction house -->
+  <div id="ah-panel" class="sheet hidden">
+    <div class="sheet-inner panel">
+      <header>
+        <div class="tabs">
+          <button class="tab active" data-atab="browse" type="button">Browse</button>
+          <button class="tab" data-atab="sell" type="button">Sell</button>
+          <button class="tab" data-atab="mine" type="button">My listings <span id="ah-owed-dot" class="dot hidden"></span></button>
+        </div>
+        <button class="btn small ghost" data-close type="button">✕</button>
+      </header>
+      <div class="ah-gold">🪙 <b id="ah-gold">0</b> gold</div>
+      <div data-abody="browse">
+        <div class="ah-filters">
+          <select id="ah-slot" aria-label="Item type">
+            <option value="">All types</option><option value="weapon">Weapons</option><option value="offhand">Shields</option><option value="head">Helms</option><option value="chest">Armor</option><option value="hands">Gloves</option><option value="feet">Boots</option><option value="ring">Rings</option><option value="amulet">Amulets</option>
+          </select>
+          <select id="ah-rarity" aria-label="Rarity">
+            <option value="">Any rarity</option><option value="common">Common</option><option value="magic">Magic</option><option value="rare">Rare</option><option value="legendary">Legendary</option>
+          </select>
+          <select id="ah-sort" aria-label="Sort">
+            <option value="price">Cheapest first</option><option value="priceDesc">Priciest first</option><option value="newest">Newest first</option><option value="level">Highest item level</option>
+          </select>
+          <label class="ah-check"><input type="checkbox" id="ah-usable" checked> Only gear I can use</label>
+        </div>
+        <div class="ah-split">
+          <div>
+            <div id="ah-list" class="ah-list"></div>
+            <div class="ah-pager"><button class="btn small" id="ah-prev" type="button">‹ Prev</button><span id="ah-pageno" class="muted">Page 1</span><button class="btn small" id="ah-next" type="button">Next ›</button></div>
+          </div>
+          <div id="ah-detail" class="item-detail"></div>
+        </div>
+      </div>
+      <div data-abody="sell" class="hidden">
+        <p class="muted" style="margin:0 0 8px;font-size:13px">Pick an item, set your price and list it. Anyone on the server can buy it, even while you're offline. The broker keeps 5% of the sale.</p>
+        <div id="ah-sell-grid" class="inv-grid"></div>
+        <div id="ah-sell-detail" class="item-detail"></div>
+      </div>
+      <div data-abody="mine" class="hidden">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn gold" id="ah-collect" type="button">Collect gold</button><span id="ah-mine-sum" class="muted" style="font-size:13px"></span></div>
+        <div id="ah-mine" class="ah-list"></div>
+      </div>
+      <div class="pad-hints"><b>A</b> Select · <b>X</b> Buy / List / Cancel · <b>LB</b>/<b>RB</b> Tabs · <b>B</b> Close</div>
+    </div>
+  </div>
+
   <!-- Dungeon gate -->
   <div id="gate-panel" class="modal hidden">
     <div class="panel">

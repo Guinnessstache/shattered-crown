@@ -38,6 +38,8 @@ const ui = new UI({
   potion: (k) => game?.potion(k),
   gate: (floor) => socket.emit('gate', { floor }, (r) => { if (!r?.ok) ui.msg(r?.error, 'warn'); }),
   chat: (text) => socket.emit('chat', { text }),
+  sfx: (n) => sfx.play(n),
+  ah: (d) => new Promise((res) => socket.emit('ah', d, (r) => res(r || { error: 'No reply from server' }))),
   leave: () => leaveGame(),
   nearShop: () => game?.nearShop(),
   panelsChanged: (open) => { if (open) { sfx.play('click'); if (!$('#menu-panel').classList.contains('hidden')) fillDevices(); } },
@@ -461,4 +463,4 @@ function frame(t) {
 }
 requestAnimationFrame(frame);
 boot();
-window.__sc = { world, get game() { return game; }, get socket() { return socket; } };
+window.__sc = { world, ui, get game() { return game; }, get socket() { return socket; } };

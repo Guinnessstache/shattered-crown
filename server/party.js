@@ -309,6 +309,7 @@ export class Party {
     const m = this.members.get(pid);
     if (!m) return;
     if (npc === 'crafter') { this.emitTo(pid, 'crafter', {}); return; }
+    if (npc === 'auctioneer') { this.emitTo(pid, 'auction', {}); return; }
     const stock = this.stockFor(m)[npc] || [];
     this.emitTo(pid, 'shop', { npc, stock: stock.map((s) => ({ ...s, price: s.value * 4 })), potions: npc === 'merchant' ? this.potionPrices(m.char) : null });
   }

@@ -297,3 +297,13 @@ export const RECIPES = {
   master: { name: 'Master', rarity: 'rare', ilvlBonus: 2, cost: { scrap: 10, dust: 6, shard: 3 }, gold: (l) => 150 + l * 30, desc: 'A rare item with 3–4 random bonuses.' },
   mythic: { name: 'Guardian-forged', rarity: 'legendary', ilvlBonus: 3, cost: { shard: 4, core: 2, sigil: 1 }, trophy: 1, gold: (l) => 500 + l * 60, desc: 'A legendary item with 5 strong random bonuses. Needs a boss trophy (tusk or silk).' },
 };
+
+// ------------------------------------------------------------ auction house
+export const AUCTION = {
+  cut: 0.05,          // the broker keeps 5% of each sale
+  maxListings: 10,    // active listings per hero
+  pageSize: 20,
+  maxPrice: 9999999,
+  // A starting price to suggest when listing: a few times what a vendor would pay.
+  suggest: (it) => Math.max(10, Math.round(it.value * ({ common: 2, magic: 3, rare: 5, legendary: 8 }[it.rarity] || 3) / 10) * 10),
+};

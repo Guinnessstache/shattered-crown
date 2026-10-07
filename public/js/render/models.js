@@ -302,7 +302,7 @@ export function buildOgre() {
 export function buildMerchant(kind = 'merchant') {
   return humanoid({
     dress(p, d) {
-      const robe = common('cloth', { color: kind === 'smith' ? 0x4a3a2a : kind === 'crafter' ? 0x5a2a7a : 0x2a4a7a });
+      const robe = common('cloth', { color: kind === 'smith' ? 0x4a3a2a : kind === 'crafter' ? 0x5a2a7a : kind === 'auctioneer' ? 0x2a5a3a : 0x2a4a7a });
       const skin = flat(0xd8a888, { rough: 0.7 });
       p.torso.add(M(G.cyl(0.22, 0.3, 0.75, 9), robe, 0, 0.25, 0));
       p.hips.add(M(G.cyl(0.3, 0.36, 0.9, 9), robe, 0, -0.42, 0));
@@ -320,6 +320,14 @@ export function buildMerchant(kind = 'merchant') {
         p.head.add(M(G.box(0.2, 0.025, 0.02), common('leather'), 0, 0.18, 0.1));
         const orb = M(G.sph(0.07, 8, 6), glow(0xc080ff), 0, -0.06, 0.03); p.handR.add(orb);
         p.head.add(M(G.sph(0.14, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), common('cloth', { color: 0x3a1a4a }), 0, 0.2, -0.01));
+      } else if (kind === 'auctioneer') {
+        // gold-trimmed coat, a feathered cap and a coin purse
+        const gold = common('gold', { color: 0xd8b04a });
+        p.torso.add(M(G.box(0.05, 0.62, 0.04), gold, 0, 0.2, 0.24));
+        p.head.add(M(G.cyl(0.15, 0.17, 0.12, 10), common('cloth', { color: 0x1a2a1a }), 0, 0.3, 0));
+        const fe = M(G.cone(0.03, 0.32, 5), flat(0xc83a3a), 0.12, 0.42, -0.04); fe.rotation.z = -0.5; p.head.add(fe);
+        p.hips.add(M(G.sph(0.08, 8, 6), common('leather', { color: 0x6a4a1a }), 0.3, -0.1, 0.1));
+        p.handR.add(M(G.cyl(0.04, 0.04, 0.012, 10), gold, 0, -0.05, 0.03));
       } else {
         const hat = M(G.cone(0.2, 0.35, 8), robe, 0, 0.42, 0); p.head.add(hat);
         p.head.add(M(G.cyl(0.26, 0.26, 0.03, 10), robe, 0, 0.27, 0));

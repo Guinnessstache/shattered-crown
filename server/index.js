@@ -5,6 +5,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { Server } from 'socket.io';
 import { openDb, MAX_CHARS } from './db.js';
+import { auctionAction, setOnlineLookup } from './auction.js';
 import { loadSecret, hashPassword, checkPassword, signToken, verifyToken, validUsername, validPassword, verifyGoogleToken, rateLimited } from './auth.js';
 import { Party, Member, parties } from './party.js';
 import { newCharacter, validName, CLASSES, xpToNext, derive, GAME_TITLE } from '../shared/rules.js';
@@ -14,6 +15,7 @@ const root = path.join(__dirname, '..');
 
 export async function startServer({ port = Number(process.env.PORT) || 3000, dataDir = process.env.DATA_DIR || path.join(root, 'data') } = {}) {
   const db = await openDb({ dataDir });
+  setOnlineLookup((charId) => { for (const p of parties.values()) for (const m of p.members.values()) if (m.charId === charId) return m; return null; });
   const secret = loadSecret(dataDir);
   const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
   const THREE_DIR = [path.join(root, 'node_modules/three'), process.resourcesPath && path.join(process.resourcesPath, 'three')]
@@ -173,6 +175,11 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       member.party.requestTravel(member.pid, { kind: 'dungeon', floor: Number(d.floor) || 1 });
       return null;
     }));
+    socket.on('ah', async (d, cb) => {
+      if (typeof cb !== 'function') return;
+      if (!member?.party) return cb({ error: 'Not in a game' });
+      try { cb(await auctionAction(db, member, d || {})); } catch (e) { console.error('auction', e); cb({ error: 'Server error' }); }
+    });
     socket.on('chat', inParty((d) => {
       const text = String(d.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
       if (text) member.party.broadcast('chat', { pid: member.pid, name: member.char.name, text });

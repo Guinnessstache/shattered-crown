@@ -1,5 +1,5 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
-import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem } from '/shared/rules.js';
+import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION } from '/shared/rules.js';
 import { itemIcon } from './render/icons.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
@@ -21,6 +21,11 @@ export class UI {
     $$('#char-panel .tab').forEach((t) => t.addEventListener('click', () => this.tab(t.dataset.tab)));
     $$('#craft-panel [data-ctab]').forEach((t) => t.addEventListener('click', () => this.craftTab(t.dataset.ctab)));
     $('#salvage-common-btn').addEventListener('click', () => this.h.inv({ op: 'salvageCommon' }));
+    $$('#ah-panel [data-atab]').forEach((t) => t.addEventListener('click', () => this.ahTab(t.dataset.atab)));
+    for (const id of ['ah-slot', 'ah-rarity', 'ah-sort', 'ah-usable']) $(`#${id}`).addEventListener('change', () => { if (!this.ah) return; Object.assign(this.ah, { slot: $('#ah-slot').value, rarity: $('#ah-rarity').value, sort: $('#ah-sort').value, usable: $('#ah-usable').checked, page: 0, sel: null }); this.ahSearch(); });
+    $('#ah-prev').addEventListener('click', () => { if (this.ah.page > 0) { this.ah.page--; this.ah.sel = null; this.ah.focusRows = true; this.ahSearch(); } });
+    $('#ah-next').addEventListener('click', () => { if (this.ah.more) { this.ah.page++; this.ah.sel = null; this.ah.focusRows = true; this.ahSearch(); } });
+    $('#ah-collect').addEventListener('click', () => this.ahDo({ op: 'collect' }));
     $('#inv-btn').addEventListener('click', () => this.toggle('char'));
     $('#menu-btn').addEventListener('click', () => this.toggle('menu'));
     $('#party-btn').addEventListener('click', () => this.toggle('party'));
@@ -185,7 +190,7 @@ export class UI {
   // ------------------------------------------------------------ panels
   anyOpen() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').some((m) => m.id !== 'create-modal'); }
   closePanels() {
-    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'gate-panel', 'party-panel', 'menu-panel']) $(`#${id}`).classList.add('hidden');
+    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
     this.h.panelsChanged?.(false);
@@ -216,6 +221,7 @@ export class UI {
     if (!$('#char-panel').classList.contains('hidden')) this.renderChar();
     if (!$('#shop-panel').classList.contains('hidden') && this.shopData) this.renderShop();
     if (this.craftSel) this.renderCraft();
+    if (this.ah) this.renderAh();
   }
 
   slotHtml(it, extra = '', attrs = '') {
@@ -309,7 +315,7 @@ export class UI {
       const cur = compare ?? ch?.equip[it.slot];
       if (cur && cur !== it) {
         const dv = score(it) - score(cur);
-        cmp = `<div class="cmp">vs equipped: <span class="${dv >= 0 ? 'plus' : 'minus'}">${dv >= 0 ? 'better' : 'worse'}</span> (${esc(cur.name)})</div>`;
+        cmp = `<div class="cmp">vs equipped: <span class="${Math.abs(dv) < 1e-6 ? 'same' : dv > 0 ? 'plus' : 'minus'}">${Math.abs(dv) < 1e-6 ? 'the same' : dv > 0 ? 'better' : 'worse'}</span> (${esc(cur.name)})</div>`;
       }
     }
     return `<div class="idet"><div class="nm" style="color:${RARITY_COLOR[it.rarity]}">${esc(it.name)}</div>
@@ -394,6 +400,113 @@ export class UI {
   }
   craftResult(html) { $('#craft-result').innerHTML = html; }
 
+  // ------------------------------------------------------------ auction house
+  openAuction() {
+    this.closePanels();
+    this.ah ||= { tab: 'browse', slot: '', rarity: '', sort: 'price', usable: true, page: 0, rows: [], more: false, sel: null, sellIdx: null, price: 0, mine: [], owed: 0, loading: false };
+    $('#ah-panel').classList.remove('hidden');
+    this.h.panelsChanged?.(true);
+    this.ahTab(this.ah.tab);
+    this.ahLoadMine(); // for the "gold waiting" dot
+  }
+  ahOpen() { return !$('#ah-panel').classList.contains('hidden'); }
+  ahTab(name) {
+    const A = this.ah; A.tab = name;
+    if (name === 'browse') { A.focusRows = true; this.ahSearch(); }
+    if (name === 'mine') this.ahLoadMine();
+    this.renderAh();
+    this.focusFirst($('#ah-panel'));
+  }
+  async ahSearch() {
+    const A = this.ah; A.loading = true; this.renderAh();
+    const r = await this.h.ah({ op: 'search', slot: A.slot, rarity: A.rarity, sort: A.sort, usable: A.usable, page: A.page });
+    A.loading = false;
+    if (r.error) { this.msg(r.error, 'warn'); this.renderAh(); return; }
+    A.rows = r.rows; A.more = r.more;
+    if (A.sel != null && !A.rows[A.sel]) A.sel = null;
+    this.renderAh();
+    // Controller: land on the first result after opening, switching tab or paging.
+    if (this.source === 'pad' && (A.focusRows || !$('#ah-panel').contains(document.activeElement))) this.focusFirst($('#ah-panel'));
+    A.focusRows = false;
+  }
+  async ahLoadMine() {
+    const r = await this.h.ah({ op: 'mine' });
+    if (r.error) return;
+    this.ah.mine = r.rows; this.ah.owed = r.owed;
+    this.renderAh();
+  }
+  async ahDo(d) {
+    const r = await this.h.ah(d);
+    if (r.error) this.msg(r.error, 'warn'); else if (r.ok) this.msg(r.ok, 'good');
+    this.h.sfx?.(r.error ? 'error' : d.op === 'collect' ? 'gold' : 'click');
+    return r;
+  }
+  async ahBuy() {
+    const A = this.ah; const row = A.rows[A.sel]; if (!row || row.mine) return;
+    const r = await this.ahDo({ op: 'buy', id: row.id, price: row.price });
+    A.sel = null;
+    this.ahSearch();
+    if (!r.error && r.item) $('#ah-detail').innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:4px">You bought:</div>${this.itemCard(r.item)}`;
+  }
+  ahPickSell(i) { const it = this.char.inv[i]; if (!it) return; this.ah.sellIdx = i; this.ah.price = AUCTION.suggest(it); this.renderAh(); }
+  async ahList() {
+    const A = this.ah; if (A.sellIdx == null || !this.char.inv[A.sellIdx]) return;
+    const r = await this.ahDo({ op: 'list', idx: A.sellIdx, price: A.price });
+    if (!r.error) { A.sellIdx = null; this.ahLoadMine(); }
+  }
+  renderAh() { if (this.ahOpen()) this.keepFocus(() => this._renderAh()); }
+  _renderAh() {
+    const A = this.ah; const ch = this.char; if (!ch) return;
+    $$('#ah-panel [data-atab]').forEach((t) => t.classList.toggle('active', t.dataset.atab === A.tab));
+    $$('#ah-panel [data-abody]').forEach((b) => b.classList.toggle('hidden', b.dataset.abody !== A.tab));
+    $('#ah-gold').textContent = fmt(ch.gold);
+    $('#ah-owed-dot').classList.toggle('hidden', !(A.owed > 0));
+    const row = (it, attrs, cls, sub, price) => `<button type="button" class="ah-row ${cls}" ${attrs}><img src="${itemIcon(it)}" alt=""><span class="nm c-${it.rarity}">${esc(it.name)}${this.isUpgrade(it) ? ' <span style="color:#7fe39a">▲</span>' : ''}</span><span class="pr">${price}</span><span class="sub">${sub}</span></button>`;
+    if (A.tab === 'browse') {
+      $('#ah-slot').value = A.slot; $('#ah-rarity').value = A.rarity; $('#ah-sort').value = A.sort; $('#ah-usable').checked = A.usable;
+      $('#ah-list').innerHTML = A.rows.length ? A.rows.map((r, i) => row(r.item, `data-ahrow="${i}"`, `${A.sel === i ? 'sel' : ''}${r.item.req > ch.level ? ' cant' : ''}`,
+        `iLvl ${r.item.ilvl} · Req ${r.item.req} · ${r.mine ? 'your listing' : esc(r.seller)}`, `${fmt(r.price)}g`)).join('')
+        : `<div class="ah-empty">${A.loading ? 'Searching…' : 'Nothing for sale matches. Try other filters, or check back later.'}</div>`;
+      $$('#ah-list [data-ahrow]').forEach((b) => b.addEventListener('click', () => { A.sel = Number(b.dataset.ahrow); this.renderAh(); }));
+      $('#ah-pageno').textContent = `Page ${A.page + 1}`;
+      $('#ah-prev').disabled = A.page === 0; $('#ah-next').disabled = !A.more;
+      const r = A.sel != null ? A.rows[A.sel] : null;
+      if (r) {
+        const cant = r.mine ? 'This is your listing' : ch.gold < r.price ? 'Not enough gold' : !ch.inv.some((x) => !x) ? 'Your pack is full' : '';
+        $('#ah-detail').innerHTML = `${this.itemCard(r.item)}<div class="ah-note">Sold by ${esc(r.seller)}</div><div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn gold" id="ah-buy" type="button" ${cant ? 'disabled' : ''}>Buy for ${fmt(r.price)} gold</button>${cant ? `<span class="muted" style="font-size:12px">${cant}</span>` : ''}</div>`;
+        $('#ah-buy').addEventListener('click', () => this.ahBuy());
+      } else if (!$('#ah-detail').textContent.includes('You bought')) $('#ah-detail').innerHTML = '<div class="muted" style="font-size:13px">Pick an item to see its stats.</div>';
+    } else if (A.tab === 'sell') {
+      $('#ah-sell-grid').innerHTML = ch.inv.map((it, i) => this.slotHtml(it, A.sellIdx === i ? 'sel' : '', `data-ahsell="${i}"`)).join('');
+      $$('#ah-sell-grid [data-ahsell]').forEach((b) => b.addEventListener('click', () => this.ahPickSell(Number(b.dataset.ahsell))));
+      const it = A.sellIdx != null ? ch.inv[A.sellIdx] : null;
+      const active = A.mine.filter((x) => x.status === 'active').length;
+      if (it) {
+        const get = A.price - Math.ceil(A.price * AUCTION.cut);
+        $('#ah-sell-detail').innerHTML = `${this.itemCard(it)}
+          <div class="ah-price"><button class="btn small" id="ah-pdn" type="button" aria-label="Lower price">−</button><input id="ah-price" type="number" min="1" max="${AUCTION.maxPrice}" value="${A.price}" inputmode="numeric" aria-label="Price"><button class="btn small" id="ah-pup" type="button" aria-label="Raise price">+</button><span class="muted" style="font-size:12px">gold</span>
+          <button class="btn gold" id="ah-list-btn" type="button" ${active >= AUCTION.maxListings ? 'disabled' : ''}>List it</button></div>
+          <div class="ah-note">A vendor would pay ${fmt(it.value)}g. Suggested price ${fmt(AUCTION.suggest(it))}g. You'll get ${fmt(get)}g after the 5% fee. ${active}/${AUCTION.maxListings} listings used.</div>`;
+        const step = (up) => { const p = A.price; const n = up ? p * 1.12 + 1 : p * 0.88; A.price = Math.max(1, Math.min(AUCTION.maxPrice, sig2(n))); if (A.price === p) A.price = Math.max(1, p + (up ? 1 : -1)); this.renderAh(); };
+        $('#ah-pdn').addEventListener('click', () => step(false));
+        $('#ah-pup').addEventListener('click', () => step(true));
+        $('#ah-price').addEventListener('change', (e) => { A.price = Math.max(1, Math.min(AUCTION.maxPrice, Math.floor(Number(e.target.value) || 1))); this.renderAh(); });
+        $('#ah-price').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });
+        $('#ah-list-btn').addEventListener('click', () => this.ahList());
+      } else $('#ah-sell-detail').innerHTML = `<div class="muted" style="font-size:13px">Pick an item from your pack. ${active}/${AUCTION.maxListings} listings used.</div>`;
+    } else {
+      const sold = A.mine.filter((x) => x.status === 'sold');
+      $('#ah-collect').disabled = !(A.owed > 0);
+      $('#ah-collect').textContent = A.owed > 0 ? `Collect ${fmt(A.owed)} gold` : 'Collect gold';
+      $('#ah-mine-sum').textContent = sold.length ? `${sold.length} item${sold.length > 1 ? 's' : ''} sold!` : A.mine.length ? 'Nothing sold yet' : '';
+      $('#ah-mine').innerHTML = A.mine.length ? A.mine.map((r, i) => r.status === 'sold'
+        ? `<div class="ah-row sold mine-row"><img src="${itemIcon(r.item)}" alt=""><span class="nm c-${r.item.rarity}">${esc(r.item.name)}</span><span class="pr" style="color:#7fe39a">+${fmt(r.price - Math.ceil(r.price * AUCTION.cut))}g</span><span class="sub">Sold to ${esc(r.buyer || 'someone')} for ${fmt(r.price)}g</span></div>`
+        : `<div class="ah-row mine-row"><img src="${itemIcon(r.item)}" alt=""><span class="nm c-${r.item.rarity}">${esc(r.item.name)}</span><span class="pr"><button class="btn small" data-ahcancel="${i}" type="button">Cancel</button></span><span class="sub">Listed for ${fmt(r.price)}g</span></div>`).join('')
+        : '<div class="ah-empty">You have nothing listed. Use the Sell tab to put items up for sale.</div>';
+      $$('#ah-mine [data-ahcancel]').forEach((b) => b.addEventListener('click', async () => { const r = A.mine[Number(b.dataset.ahcancel)]; if (r) { await this.ahDo({ op: 'cancel', id: r.id }); this.ahLoadMine(); } }));
+    }
+  }
+
   // ------------------------------------------------------------ shop
   openShop(data) {
     this.shopData = data;
@@ -459,13 +572,13 @@ export class UI {
   focusFirst(root) {
     if (this.source !== 'pad' || !root) return;
     const f = this.focusables(root);
-    const el = f.find((e) => e.classList.contains('slot') || e.classList.contains('shop-item')) || f.find((e) => e.classList.contains('plus-btn')) || f.find((e) => !e.hasAttribute('data-close') && !e.closest('header')) || f[0];
+    const el = f.find((e) => e.classList.contains('slot') || e.classList.contains('shop-item') || e.classList.contains('ah-row')) || f.find((e) => e.classList.contains('plus-btn')) || f.find((e) => !e.hasAttribute('data-close') && !e.closest('header')) || f[0];
     el?.focus({ preventScroll: true }); el?.scrollIntoView?.({ block: 'nearest' });
   }
   // A stable selector for the focused control, so focus survives a panel redraw.
   focusKey(el) {
     if (!el || !this.openPanelEl()?.contains(el)) return null;
-    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv']) {
+    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv', 'atab', 'ahrow', 'ahsell', 'ahcancel']) {
       if (el.dataset[k] !== undefined) return { attr: k, val: el.dataset[k], n: el.dataset.n };
     }
     return el.id ? { id: el.id } : null;
@@ -549,6 +662,11 @@ export class UI {
       if (this.craftSel.tab === 'craft') { if (k?.attr === 'recipe') this.h.inv({ op: 'craft', recipe: k.val, base: this.craftSel.base }); else this.padPress(); }
       else if (k?.attr === 'salv' && this.char.inv[Number(k.val)]) { this.h.inv({ op: 'salvage', idx: Number(k.val) }); this.salvSel = null; }
       else this.padPress();
+    } else if (root.id === 'ah-panel') {
+      const k = this.focusKey(document.activeElement); const A = this.ah;
+      if (k?.attr === 'ahrow') { A.sel = Number(k.val); this.ahBuy(); }
+      else if (k?.attr === 'ahsell' && this.char.inv[Number(k.val)]) { if (A.sellIdx !== Number(k.val)) this.ahPickSell(Number(k.val)); else this.ahList(); }
+      else this.padPress();
     } else this.padPress();
   }
 
@@ -564,6 +682,7 @@ export class UI {
   padTab(step) {
     const root = this.openPanelEl();
     if (root?.id === 'craft-panel') { this.craftTab(this.craftSel.tab === 'craft' ? 'salvage' : 'craft'); return; }
+    if (root?.id === 'ah-panel') { const t = ['browse', 'sell', 'mine']; this.ahTab(t[(t.indexOf(this.ah.tab) + step + 3) % 3]); return; }
     if (root?.id !== 'char-panel') return;
     const tabs = ['gear', 'stats', 'skills'];
     const i = (tabs.indexOf(this.curTab || 'gear') + step + tabs.length) % tabs.length;
@@ -571,6 +690,9 @@ export class UI {
     this.focusFirst(root);
   }
 }
+
+// Round to two significant figures so prices step in tidy amounts (120, 130 … 1,200, 1,300).
+function sig2(n) { if (n < 100) return Math.round(n); const m = 10 ** (Math.floor(Math.log10(n)) - 1); return Math.round(n / m) * m; }
 
 function salvageYieldPreview(it) {
   const ranges = { common: [['scrap', '2–3']], magic: [['scrap', '1–2'], ['dust', '1–2']], rare: [['dust', '2–3'], ['shard', '1–2']], legendary: [['shard', '2–3'], ['core', '1+']] }[it.rarity] || [];

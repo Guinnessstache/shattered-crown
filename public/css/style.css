@@ -409,3 +409,31 @@ body.pad-on .screen button:focus, body.pad-on .screen input:focus, body.pad-on #
 .lbl.mat { color: #e8e2d4; }
 .lbl.mat.boss { color: #e05aff; border: 1px solid #e05aff; }
 .gold-line .mats { display: block; margin-top: 4px; font-size: 12px; }
+
+/* ---------- auction house */
+.tab .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 6px var(--gold); vertical-align: middle; margin-left: 4px; }
+.ah-gold { margin: 0 0 10px; font-size: 14px; color: #ffd76a; }
+.ah-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ah-filters select { background: rgba(0,0,0,.45); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; }
+.ah-check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.ah-split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.ah-split .item-detail { margin-top: 0; }
+@media (max-width: 760px) { .ah-split { grid-template-columns: 1fr; } }
+.ah-list { display: flex; flex-direction: column; gap: 5px; }
+.ah-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0,0,0,.3); cursor: pointer; text-align: left; width: 100%; color: inherit; font: inherit; }
+.ah-row img { width: 34px; height: 34px; grid-row: span 2; }
+.ah-row .nm { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ah-row .sub { font-size: 11px; color: var(--muted); grid-column: 2; }
+.ah-row .pr { color: #ffd76a; font-weight: 700; font-size: 13px; grid-row: span 2; text-align: right; }
+.ah-row .pr small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+.ah-row.sel { border-color: #fff; background: rgba(255,255,255,.06); }
+.ah-row.sold { border-color: #7fe39a55; }
+.ah-row.mine-row .pr { color: var(--muted); }
+.ah-pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 8px; font-size: 13px; }
+.ah-price { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.ah-price input { width: 120px; background: rgba(0,0,0,.45); color: #ffd76a; border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; font: inherit; font-weight: 700; text-align: right; }
+.ah-price .btn { min-width: 38px; }
+.ah-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.ah-empty { padding: 18px 8px; text-align: center; color: var(--muted); font-size: 13px; }
+#ah-sell-grid, #salvage-grid { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); }
+.cmp .same { color: var(--muted); }
