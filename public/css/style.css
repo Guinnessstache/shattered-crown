@@ -385,3 +385,7 @@ body.pad-on .screen button:focus, body.pad-on .screen input:focus, body.pad-on #
 
 #menu-panel .panel { max-height: calc(100dvh - 24px); overflow-y: auto; }
 .audio-settings h3 { margin-bottom: 10px; }
+
+/* fixed thumbstick */
+.stick { transition: opacity .15s; }
+.stick.active { opacity: 1; border-color: rgba(255,230,180,.7); }

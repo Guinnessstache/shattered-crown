@@ -56,11 +56,36 @@ export class Input {
       this.setSource('keyboard');
       this.mouse.x = e.clientX; this.mouse.y = e.clientY;
       if (e.button === 0) { this.attackHeld = true; this.h.onAction('attack', true); }
-      if (e.button === 2) this.h.onAction('skill0', true);
+      // Right button: hold and drag to turn the camera (mouse is captured while held);
+      // a quick click without dragging still uses Cleave.
+      if (e.button === 2) {
+        this.rmb = { t: performance.now(), moved: 0 };
+        try { canvas.requestPointerLock?.({ unadjustedMovement: true })?.catch?.(() => canvas.requestPointerLock?.()); } catch { /* not supported */ }
+      }
       if (e.button === 1) { this.dragging = { x: e.clientX }; e.preventDefault(); }
     });
-    addEventListener('mouseup', (e) => { if (e.button === 0) this.attackHeld = false; if (e.button === 1) this.dragging = null; });
-    addEventListener('mousemove', (e) => { if (this.dragging) { this.h.onCamera((e.clientX - this.dragging.x) * 0.008, 0); this.dragging.x = e.clientX; } });
+    addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.attackHeld = false;
+      if (e.button === 1) this.dragging = null;
+      if (e.button === 2 && this.rmb) {
+        const quick = this.rmb.moved < 8 && performance.now() - this.rmb.t < 350;
+        this.rmb = null;
+        if (document.pointerLockElement) document.exitPointerLock?.();
+        if (quick) this.h.onAction('skill0', true);
+      }
+    });
+    addEventListener('mousemove', (e) => {
+      if (this.dragging) { this.h.onCamera(-(e.clientX - this.dragging.x) * 0.008, 0); this.dragging.x = e.clientX; }
+      if (this.rmb) {
+        let mx = e.movementX || 0; let my = e.movementY || 0;
+        // Some browsers report a big jump when the mouse is captured; ignore those spikes.
+        if (Math.abs(mx) > 150 || Math.abs(my) > 150) { mx = 0; my = 0; }
+        this.rmb.moved += Math.abs(mx) + Math.abs(my);
+        if (this.rmb.moved >= 8) this.h.onCamera(-mx * 0.006, 0, my * 0.004 * (this.opts.invertY ? -1 : 1));
+      }
+    });
+    // If the browser drops the capture (Esc, alt-tab), stop turning.
+    document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && this.rmb) this.rmb = null; });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => { this.h.onCamera(0, Math.sign(e.deltaY) * 1.2); e.preventDefault(); }, { passive: false });
   }
@@ -76,14 +101,17 @@ export class Input {
     const zone = root.querySelector('#stick-zone'); const stick = root.querySelector('#stick'); const knob = stick.querySelector('i');
     let id = null; let ox = 0; let oy = 0;
     const R = 50;
-    const home = () => { stick.style.left = ''; stick.style.top = ''; knob.style.transform = ''; };
+    const home = () => { knob.style.transform = ''; stick.classList.remove('active'); };
+    // The stick stays put: drags are measured from its fixed center wherever the thumb lands in the zone.
     zone.addEventListener('pointerdown', (e) => {
       if (id !== null) return;
       id = e.pointerId; zone.setPointerCapture(id);
-      ox = e.clientX; oy = e.clientY;
-      stick.style.left = `${ox}px`; stick.style.top = `${oy}px`;
+      const r = stick.getBoundingClientRect();
+      ox = r.left + r.width / 2; oy = r.top + r.height / 2;
+      stick.classList.add('active');
       this.setSource('touch');
       e.preventDefault();
+      zone.dispatchEvent(new PointerEvent('pointermove', { pointerId: id, clientX: e.clientX, clientY: e.clientY }));
     });
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== id) return;

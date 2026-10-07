@@ -392,7 +392,7 @@ export class UI {
   controlsHelp(src) {
     $('#controls-help').innerHTML = src === 'pad'
       ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> drop (sell in shops) · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
-      : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Left click</kbd>/<kbd>Space</kbd> attack · <kbd>Right click</kbd> Cleave · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> or middle-drag rotate camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
+      : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Left click</kbd>/<kbd>Space</kbd> attack · <kbd>Right click</kbd> Cleave · <kbd>Hold right button + move mouse</kbd> turn camera · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> also turn camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
   }
 
   // ------------------------------------------------------------ controller navigation in panels

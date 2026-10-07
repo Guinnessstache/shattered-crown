@@ -95,9 +95,18 @@ export function newItemId(rng) {
   return `${Date.now().toString(36)}${idCounter.toString(36)}${Math.floor((rng ? rng.next() : Math.random()) * 1e6).toString(36)}`;
 }
 
+// Each step up in rarity is much rarer than the one below it.
+//   bias 0 = normal monster / barrel, 1 = champion or chest, 2 = boss
+//   normal: 72% common · 24% magic · 3.5% rare · 0.25% legendary
+//   champion/chest: 55 · 36 · 8 · 0.8      boss: 30 · 48 · 19 · 3
+export const RARITY_WEIGHTS = [
+  { common: 72, magic: 24, rare: 3.5, legendary: 0.25 },
+  { common: 55, magic: 36, rare: 8, legendary: 0.8 },
+  { common: 30, magic: 48, rare: 19, legendary: 3 },
+];
 export function rollRarity(rng, bias = 0) {
-  // bias: 0 normal, 1 elite, 2 boss/chest
-  return rng.weighted([['common', Math.max(10, 62 - bias * 22)], ['magic', 30 + bias * 6], ['rare', 7 + bias * 10], ['legendary', bias >= 2 ? 3 : 0.4 + bias * 0.6]]);
+  const w = RARITY_WEIGHTS[Math.max(0, Math.min(2, bias))];
+  return rng.weighted(Object.entries(w));
 }
 
 export function makeItem(rng, baseKey, ilvl, rarity = 'common') {

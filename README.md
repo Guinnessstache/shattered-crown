@@ -56,7 +56,7 @@ For testing in the browser, start with `DEV_CMDS=1 npm start` and use the consol
 | Skills | 1–4, right click = Cleave | X, Y, B, RB | Skill buttons |
 | Potions | Q (health), R (mana) | LT, RT | ❤ ✦ |
 | Use / pick up | E | LB | ✋ (appears when needed) |
-| Camera | Z/X or middle-drag, wheel to zoom | Right stick | Swipe empty space |
+| Camera | Hold right mouse button and move the mouse (or Z/X), wheel to zoom | Right stick | Swipe empty space |
 | Character | I | View | 🎒 |
 | Map | Tab | R3 | Tap the minimap |
 

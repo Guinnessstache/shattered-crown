@@ -5,6 +5,7 @@ import { loadModelManifest } from './render/models.js';
 import { Input } from './input.js';
 import { UI, esc, $, $$ } from './ui.js';
 import { Sfx } from './audio.js';
+import { Music } from './music.js';
 import { Voice } from './voice.js';
 import { Game } from './game.js';
 import { generateTown } from '/shared/map.js';
@@ -22,6 +23,10 @@ world.setQuality(store.get('quality', coarse ? 'low' : 'high'));
 world.showLootLabels = store.get('labels', '1') === '1';
 const sfx = new Sfx();
 sfx.setVolume(Number(store.get('sfx', '0.7')));
+const music = new Music();
+music.setVolume(Number(store.get('music', '0.5')));
+music.play('town');
+const unlockAudio = () => { sfx.unlock(); music.attach(sfx.ctx); };
 let socket = null; let game = null; let voice = null; let config = {};
 let chars = []; let selected = null; let classes = {};
 
@@ -40,7 +45,7 @@ const ui = new UI({
 
 const input = new Input(world.renderer.domElement, {
   onAction: (name, down, src) => {
-    sfx.unlock(); voice?.unlock();
+    unlockAudio(); voice?.unlock();
     if (name === 'ptt' && !down) { voice?.pushToTalk(false); return; }
     if (game) game.action(name, down, src);
     else if (down && src === 'pad') titlePad(name);
@@ -60,6 +65,8 @@ $('#quality-select').value = world.quality;
 $('#quality-select').addEventListener('change', (e) => { store.set('quality', e.target.value); ui.msg('Graphics change applies on the next area', 'info'); world.setQuality(e.target.value); });
 $('#sfx-vol').value = sfx.vol;
 $('#sfx-vol').addEventListener('input', (e) => { sfx.setVolume(Number(e.target.value)); store.set('sfx', e.target.value); });
+$('#music-vol').value = music.vol;
+$('#music-vol').addEventListener('input', (e) => { music.setVolume(Number(e.target.value)); store.set('music', e.target.value); });
 $('#touch-toggle').addEventListener('change', (e) => setTouch(e.target.checked));
 for (const k of ['invertX', 'invertY']) {
   const box = $(`#${k === 'invertX' ? 'invx' : 'invy'}-toggle`);
@@ -68,7 +75,8 @@ for (const k of ['invertX', 'invertY']) {
 }
 $('#labels-toggle').checked = world.showLootLabels;
 $('#labels-toggle').addEventListener('change', (e) => { world.showLootLabels = e.target.checked; store.set('labels', e.target.checked ? '1' : '0'); });
-addEventListener('pointerdown', () => { sfx.unlock(); voice?.unlock(); }, { once: false });
+addEventListener('pointerdown', () => { unlockAudio(); voice?.unlock(); }, { once: false });
+addEventListener('keydown', () => unlockAudio());
 
 // ------------------------------------------------------------ screens
 const show = (id) => { for (const s of ['auth', 'select', 'hud']) $(`#${s}`).classList.toggle('hidden', s !== id); };
@@ -262,7 +270,7 @@ function play(mode, code) {
     if (!r?.ok) { $('#fade').classList.remove('on'); $('#select-error').textContent = r?.error || 'Could not start'; return; }
     if (preview) { world.remove(preview); preview = null; }
     voice.setMyPid(r.pid);
-    game = new Game({ socket, world, input, ui, sfx, voice, me: r });
+    game = new Game({ socket, world, input, ui, sfx, music, voice, me: r });
     show('hud');
     ui.setTouch(touchOn);
     world.targetDist = 15;
@@ -273,6 +281,7 @@ function play(mode, code) {
 
 function endGame() {
   game?.destroy(); game = null;
+  music.setBoss(false); music.play('town');
   checkOrientation();
   voice?.closeAll();
   ui.closePanels();

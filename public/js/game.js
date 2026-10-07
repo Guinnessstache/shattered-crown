@@ -7,8 +7,8 @@ const PLAYER_R = 0.45;
 const now = () => performance.now() / 1000;
 
 export class Game {
-  constructor({ socket, world, input, ui, sfx, voice, me }) {
-    Object.assign(this, { socket, world, input, ui, sfx, voice });
+  constructor({ socket, world, input, ui, sfx, music, voice, me }) {
+    Object.assign(this, { socket, world, input, ui, sfx, music, voice });
     this.pid = me.pid;
     this.char = me.char; this.derived = me.derived; this.next = me.next;
     this.myId = `p${me.pid}`;
@@ -94,6 +94,7 @@ export class Game {
     this.ui.zoneName(town ? 'Emberfall Village' : `${{ crypt: 'The Crypts', cavern: 'Deep Caverns', infernal: 'The Burning Halls' }[z.theme]} · Floor ${z.floor}`);
     this.ui.center(town ? 'Emberfall Village' : `Floor ${z.floor}${z.floor % 5 === 0 ? ' — Guardian\'s Lair' : ''}`, 2000);
     this.sfx.ambience(town ? 'town' : 'dungeon');
+    this.music?.play(town ? 'town' : z.theme);
     this.ui.boss(null); this.ui.death(false);
     this.dead = false;
     if (this.me) { this.world.focus.set(this.me.x, 0, this.me.y); }
@@ -465,6 +466,7 @@ export class Game {
     let boss = null;
     for (const v of W.ents.values()) if (v.k === 'm' && v.e.boss && !v.dead && Math.hypot(v.x - me.x, v.y - me.y) < 26) boss = v;
     this.ui.boss(boss);
+    this.music?.setBoss(!!boss);
     if (t > this.minimapAt) { this.minimapAt = t + 0.15; this.drawMinimap(); }
   }
 
