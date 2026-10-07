@@ -265,8 +265,9 @@ function runeHalo(g, y, r, col) {
 // Tier families: Short Sword · Broadsword · Knight's Blade · Runed Longsword · Dread Blade · Kingsfall
 function sword(g, L, rn) {
   const t = L.tier;
-  const len = [0.62, 0.8, 0.95, 1.02, 1.06, 1.12][t] * rn.f(0.94, 1.06);
-  const w = [0.042, 0.056, 0.046, 0.044, 0.05, 0.05][t] * rn.f(0.88, 1.12);
+  const big = L.big ? 1 : 0; // greatsword: two-handed version of the same family
+  const len = [0.62, 0.8, 0.95, 1.02, 1.06, 1.12][t] * rn.f(0.94, 1.06) * (big ? 1.38 : 1);
+  const w = [0.042, 0.056, 0.046, 0.044, 0.05, 0.05][t] * rn.f(0.88, 1.12) * (big ? 1.25 : 1);
   const th = 0.011;
   const tip = rn.pick(t === 0 ? ['point', 'round', 'clip'] : t === 4 ? ['hook', 'point', 'clip'] : ['point', 'spear', 'point', 'clip']);
   const taper = (u) => {
@@ -293,8 +294,8 @@ function sword(g, L, rn) {
   const gemC = L.col ?? RARITY_GEM[L.rarity];
   const gem = L.rarity !== 'common' && gemC ? gemMat(gemC) : null;
   const guardStyle = rn.pick([['bar', 'bar', 'curved'], ['bar', 'curved', 'upswept'], ['curved', 'bar', 'ring'], ['curved', 'upswept', 'winged'], ['spiked', 'spiked', 'curved'], ['winged', 'winged', 'upswept']][t]);
-  guardPart(g, rn, guardStyle, 0.12, [0.22, 0.28, 0.32, 0.34, 0.34, 0.38][t] * rn.f(0.9, 1.1), fitting, gem);
-  const gripLen = (t >= 2 ? 0.26 : 0.2) * rn.f(0.92, 1.08);
+  guardPart(g, rn, guardStyle, 0.12, [0.22, 0.28, 0.32, 0.34, 0.34, 0.38][t] * rn.f(0.9, 1.1) * (big ? 1.3 : 1), fitting, gem);
+  const gripLen = (big ? 0.44 : t >= 2 ? 0.26 : 0.2) * rn.f(0.92, 1.08);
   const gg = new THREE.Group(); gg.position.y = 0.1 - gripLen / 2 - 0.0; g.add(gg);
   gripPart(gg, rn, { len: gripLen, col: rn.pick(GRIP_COLORS), fitting });
   pommelPart(g, rn, rn.pick([['ball', 'disc'], ['disc', 'ball', 'wheel'], ['wheel', 'disc', 'gem'], ['gem', 'wheel', 'crescent'], ['skull', 'crescent', 'gem'], ['gem', 'crescent']][t]), 0.1 - gripLen, fitting, gem);
@@ -319,15 +320,18 @@ function sword(g, L, rn) {
 // Hatchet · War Axe · Bearded Axe · Reaver · Doom Axe · Worldsplitter
 function axe(g, L, rn) {
   const t = L.tier;
-  const haftLen = [0.72, 0.9, 0.98, 1.04, 1.1, 1.16][t];
-  const top = haftLen * 0.78;
+  const big = L.big ? 1 : 0; // great axe: two-handed version of the same family
+  const haftLen = [0.72, 0.9, 0.98, 1.04, 1.1, 1.16][t] * (big ? 1.45 : 1);
+  const top = haftLen * (big ? 0.7 : 0.78);
+  const butt = haftLen * (big ? 0.3 : 0.22);
+  const hr = big ? 1.2 : 1; // thicker haft
   const wood = common(t >= 4 ? 'darkwood' : 'wood', { rough: 0.85 });
-  g.add(mesh(sweep([[0, -haftLen * 0.22, 0], [0.004, top * 0.3, 0], [-0.004, top * 0.7, 0], [0, top + 0.06, 0]], (u) => 0.03 * (1.05 - u * 0.15), { seg: 24, rad: 9 }), wood));
+  g.add(mesh(sweep([[0, -butt, 0], [0.004, top * 0.3, 0], [-0.004, top * 0.7, 0], [0, top + 0.06, 0]], (u) => 0.03 * hr * (1.05 - u * 0.15), { seg: 24, rad: 9 }), wood));
   const fitting = metalMat(rn.pick(FITTINGS[L.rarity] || FITTINGS.common));
-  for (const y of [-haftLen * 0.2, 0.1, top - 0.12]) g.add(mesh(lathe([[0.034, y - 0.018], [0.038, y], [0.034, y + 0.018]], 10), fitting));
-  const gg = new THREE.Group(); gg.position.y = -0.04; g.add(gg); gripPart(gg, rn, { len: 0.2, r: 0.032, col: rn.pick(GRIP_COLORS), fitting });
+  for (const y of [-butt * 0.92, 0.1, top - 0.12]) g.add(mesh(lathe([[0.034 * hr, y - 0.018], [0.038 * hr, y], [0.034 * hr, y + 0.018]], 10), fitting));
+  const gg = new THREE.Group(); gg.position.y = big ? -0.16 : -0.04; g.add(gg); gripPart(gg, rn, { len: big ? 0.42 : 0.2, r: 0.032 * hr, col: rn.pick(GRIP_COLORS), fitting });
   const headMat = metalMat(rn.pick(TIER_METALS[t]));
-  const s = rn.f(0.9, 1.1) * [0.75, 0.9, 1, 1.05, 1.1, 1.25][t];
+  const s = rn.f(0.9, 1.1) * [0.75, 0.9, 1, 1.05, 1.1, 1.25][t] * (big ? 1.4 : 1);
   const beard = t >= 2 ? rn.f(0.12, 0.22) : rn.f(0.02, 0.08);
   const head = [[0, 0.06], [0.08, 0.05], [0.18, 0.11], [0.22, 0.16], [0.23, 0.05], [0.22, -0.06], [0.16, -0.06 - beard], [0.12, -0.05 - beard * 0.8], [0.08, -0.03], [0, -0.05]].map(([x, y]) => [x * s, y * s]);
   if (t === 3) head.splice(4, 0, [0.25 * s, 0.11 * s]); // reaver hook
@@ -357,21 +361,24 @@ function axe(g, L, rn) {
 // Club · Flanged Mace · Morningstar · Bonebreaker · Grave Maul · Sunhammer
 function mace(g, L, rn) {
   const t = L.tier;
-  const shaft = [0.66, 0.74, 0.78, 0.82, 0.9, 0.9][t];
+  const big = L.big ? 1 : 0; // maul: two-handed version of the same family
+  const shaft = [0.66, 0.74, 0.78, 0.82, 0.9, 0.9][t] * (big ? 1.55 : 1);
   const fitting = metalMat(rn.pick(FITTINGS[L.rarity] || FITTINGS.common));
   const headMat = metalMat(rn.pick(TIER_METALS[t]));
   const top = shaft * 0.86;
   const gemC = L.col ?? RARITY_GEM[L.rarity];
   if (t === 0) {
     const wood = common('wood', { rough: 0.85 });
-    g.add(mesh(lathe([[0.03, -0.14], [0.034, 0.1], [0.06, 0.4], [0.085, 0.62], [0.06, 0.72], [0.001, 0.74]], 12), wood));
-    for (const y of [0.42, 0.6]) g.add(mesh(lathe([[0.075, y - 0.02], [0.088, y], [0.075, y + 0.02]], 12), metalMat('iron')));
-    for (let i = 0; i < 7; i++) { const a = i * 2.3; const y = 0.46 + (i % 3) * 0.06; const st = mesh(new THREE.ConeGeometry(0.014, 0.05, 5), metalMat('iron'), Math.cos(a) * 0.08, y, Math.sin(a) * 0.08); st.rotation.set(Math.sin(a) * Math.PI / 2, 0, -Math.cos(a) * Math.PI / 2); g.add(st); }
-    return 0.55;
+    const k = big ? 1.5 : 1; const b = big ? -0.32 : -0.14; // sledge: a long, heavy club
+    g.add(mesh(lathe([[0.03, b], [0.034, 0.1 * k], [0.06 * k, 0.4 * k], [0.085 * k, 0.62 * k], [0.06 * k, 0.72 * k], [0.001, 0.74 * k]], 12), wood));
+    for (const y of [0.42, 0.6]) g.add(mesh(lathe([[0.075 * k, y * k - 0.02], [0.088 * k, y * k], [0.075 * k, y * k + 0.02]], 12), metalMat('iron')));
+    for (let i = 0; i < 7; i++) { const a = i * 2.3; const y = (0.46 + (i % 3) * 0.06) * k; const st = mesh(new THREE.ConeGeometry(0.014 * k, 0.05 * k, 5), metalMat('iron'), Math.cos(a) * 0.08 * k, y, Math.sin(a) * 0.08 * k); st.rotation.set(Math.sin(a) * Math.PI / 2, 0, -Math.cos(a) * Math.PI / 2); g.add(st); }
+    return 0.55 * k;
   }
-  g.add(mesh(lathe([[0.024, -0.16], [0.026, top - 0.1], [0.032, top - 0.04]], 10), metalMat(rn.pick(['iron', 'dark']))));
-  const gg = new THREE.Group(); gg.position.y = -0.02; g.add(gg); gripPart(gg, rn, { len: 0.22, r: 0.03, col: rn.pick(GRIP_COLORS), fitting });
-  pommelPart(g, rn, rn.pick(['ball', 'disc', 'gem']), -0.13, fitting, L.rarity !== 'common' && gemC ? gemMat(gemC) : null);
+  const bot = big ? -0.38 : -0.16;
+  g.add(mesh(lathe([[0.024 * (big ? 1.25 : 1), bot], [0.026 * (big ? 1.25 : 1), top - 0.1], [0.032 * (big ? 1.25 : 1), top - 0.04]], 10), metalMat(rn.pick(['iron', 'dark']))));
+  const gg = new THREE.Group(); gg.position.y = big ? -0.14 : -0.02; g.add(gg); gripPart(gg, rn, { len: big ? 0.44 : 0.22, r: 0.03 * (big ? 1.2 : 1), col: rn.pick(GRIP_COLORS), fitting });
+  pommelPart(g, rn, rn.pick(['ball', 'disc', 'gem']), bot + 0.03, fitting, L.rarity !== 'common' && gemC ? gemMat(gemC) : null);
   const n0 = g.children.length;
   if (t === 1 || t === 3) { // flanged
     g.add(mesh(lathe([[0.04, top - 0.08], [0.06, top], [0.05, top + 0.12], [0.02, top + 0.16]], 12), headMat));
@@ -404,11 +411,11 @@ function mace(g, L, rn) {
     g.add(mesh(rbox(0.1, 0.1, 0.08, 0.015), gold, 0, top - 0.02, 0));
   }
   // scale the whole head up around the top of the shaft so it reads at game distance
-  const head = new THREE.Group(); head.position.y = top; head.scale.setScalar(1.35);
+  const head = new THREE.Group(); head.position.y = top; head.scale.setScalar(big ? 2.0 : 1.35);
   for (const c of g.children.slice(n0)) { c.position.y -= top; head.add(c); }
   g.add(head);
-  if (L.rarity === 'legendary') runeHalo(g, top + 0.1, 0.26, L.col ?? 0xffa040);
-  return top + 0.08;
+  if (L.rarity === 'legendary') runeHalo(g, top + 0.1, big ? 0.36 : 0.26, L.col ?? 0xffa040);
+  return top + (big ? 0.14 : 0.08);
 }
 
 // ---------------------------------------------------------------- staves
@@ -613,7 +620,12 @@ function shield(g, L, rn) {
 }
 
 // ---------------------------------------------------------------- entry points
-const BUILD = { sword, axe, mace, staff, shield };
+const BUILD = {
+  sword, axe, mace, staff, shield,
+  greatsword: (g, L, rn) => sword(g, { ...L, big: true }, rn),
+  greataxe: (g, L, rn) => axe(g, { ...L, big: true }, rn),
+  maul: (g, L, rn) => mace(g, { ...L, big: true }, rn),
+};
 
 /** Build a weapon or shield from an item look ({ kind, tier, rarity, col, el, col2, s }). */
 export function forgeItem(look) {

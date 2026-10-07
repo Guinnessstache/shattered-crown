@@ -28,9 +28,9 @@ const controls = new OrbitControls(camera, renderer.domElement); controls.target
 await loadModelManifest();
 await Models.heroModelsReady;
 const cls = q.get('cls') || 'knight';
-const WPN = { knight: 'sword', berserker: 'axe', alchemist: 'staff', druid: 'staff' };
+const WPN = { knight: 'sword', berserker: 'greataxe', alchemist: 'staff', druid: 'staff' };
 const look = { weapon: { kind: q.get('weapon') || WPN[cls], tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 7 } };
-if (cls === 'knight') look.offhand = { kind: 'shield', tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 9 };
+if (cls === 'knight' && !q.get('weapon')) look.offhand = { kind: 'shield', tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 9 };
 const hero = buildHero(cls, look);
 scene.add(hero);
 const anim = new SkinnedAnimator(hero);

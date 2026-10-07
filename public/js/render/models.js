@@ -635,7 +635,7 @@ function skinnedHero(cls, look) {
   }
   return h;
 }
-const CLASS_WEAPON = { knight: 'sword', berserker: 'axe', alchemist: 'staff', druid: 'staff' };
+const CLASS_WEAPON = { knight: 'sword', berserker: 'greataxe', alchemist: 'staff', druid: 'staff' };
 // How the game's weapons and shields sit on the Mixamo bones, in the rest pose (T-pose, palms
 // down, facing +Z, character's left = +X). Swords and axes come out of the fist along the thumb
 // (forward); the axe grip matches where the Brute's own axe sat in the Great Sword pack. Staves
@@ -646,6 +646,10 @@ export const GRIP = {
   axe: { y: [-0.33, 0.04, 0.94], z: [1, 0, 0], offset: [-0.117, -0.068, -0.038] },
   mace: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.025, 0.0] },
   staff: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.03, 0.0] },
+  // Two-handers: the Brute's own two-handed grip (the upper hand at the weapon's grip origin).
+  greataxe: { y: [-0.33, 0.04, 0.94], z: [1, 0, 0], offset: [-0.117, -0.068, -0.038] },
+  greatsword: { y: [-0.33, 0.04, 0.94], z: [1, 0, 0], offset: [-0.117, -0.068, -0.038] },
+  maul: { y: [-0.33, 0.04, 0.94], z: [1, 0, 0], offset: [-0.117, -0.068, -0.038] },
   shield: { y: [0, 0, 1], z: [0, 1, 0], offset: [0.12, 0.08, 0.0], scale: 0.85 },
 };
 GRIP.weapon = GRIP.sword;

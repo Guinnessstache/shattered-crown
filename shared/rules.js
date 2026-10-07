@@ -34,8 +34,8 @@ export const CLASSES = {
     base: { str: 17, dex: 13, vit: 12, spi: 6 },
     grow: { str: 1, dex: 1, vit: 1, spi: 1 },
     skills: ['frenzy', 'leap', 'whirlwind', 'bloodlust'],
-    starter: { weapon: 'axe', chest: 'chest' },
-    starterName: 'Notched Axe',
+    starter: { weapon: 'greataxe', chest: 'chest' },
+    starterName: 'Notched Greataxe',
     power: 'str',
   },
   alchemist: {
@@ -163,6 +163,10 @@ export const BASES = {
   axe: { slot: 'weapon', kind: 'axe', names: ['Hatchet', 'War Axe', 'Bearded Axe', 'Reaver', 'Doom Axe', 'Worldsplitter'], dmg: 1.12, speed: 0.6, reach: 2.3 },
   mace: { slot: 'weapon', kind: 'mace', names: ['Club', 'Flanged Mace', 'Morningstar', 'Bonebreaker', 'Grave Maul', 'Sunhammer'], dmg: 1.18, speed: 0.64, reach: 2.2, stunChance: 0.08 },
   staff: { slot: 'weapon', kind: 'staff', names: ['Quarterstaff', 'Oak Staff', 'Runed Staff', 'Spirit Staff', 'Grave Staff', 'Staff of Embers'], dmg: 1.08, speed: 0.6, reach: 2.6 },
+  // Two-handed: harder hits and longer reach, but no shield (equipping one moves the shield to the pack).
+  greataxe: { slot: 'weapon', kind: 'greataxe', twoHanded: true, names: ['Woodsman\'s Axe', 'Great Axe', 'Executioner', 'Ravager', 'Doom Cleaver', 'Worldcleaver'], dmg: 1.45, speed: 0.78, reach: 2.7, drop: 0.75 },
+  greatsword: { slot: 'weapon', kind: 'greatsword', twoHanded: true, names: ['Claymore', 'Greatsword', 'Zweihander', 'Runed Greatblade', 'Dread Zweihander', 'Kingslayer'], dmg: 1.35, speed: 0.72, reach: 2.9, drop: 0.75 },
+  maul: { slot: 'weapon', kind: 'maul', twoHanded: true, names: ['Sledge', 'War Maul', 'Spiked Maul', 'Bonecrusher', 'Grave Hammer', 'Mountainbreaker'], dmg: 1.55, speed: 0.85, reach: 2.5, stunChance: 0.14, drop: 0.75 },
   shield: { slot: 'offhand', kind: 'shield', names: ['Buckler', 'Kite Shield', 'Tower Shield', 'Aegis', 'Bulwark', 'Dragonguard'], armor: 1.0, block: [10, 26] },
   helm: { slot: 'head', kind: 'helm', names: ['Leather Cap', 'Iron Helm', 'Great Helm', 'Winged Helm', 'Dread Visage', 'Crown of Ash'], armor: 0.8 },
   chest: { slot: 'chest', kind: 'chest', names: ['Padded Jerkin', 'Chain Mail', 'Scale Hauberk', 'Plate Cuirass', 'Gothic Plate', 'Ember Plate'], armor: 1.6 },
@@ -306,13 +310,16 @@ export function makeItem(rng, baseKey, ilvl, rarity = 'common') {
 
 export function randomItem(rng, ilvl, bias = 0, slotFilter = null) {
   const keys = Object.keys(BASES).filter((k) => !slotFilter || slotFilter.includes(BASES[k].slot));
-  const baseKey = rng.weighted(keys.map((k) => [k, BASES[k].slot === 'weapon' ? 1.3 : BASES[k].slot === 'ring' || BASES[k].slot === 'amulet' ? 0.6 : 1]));
+  const baseKey = rng.weighted(keys.map((k) => [k, BASES[k].drop ?? (BASES[k].slot === 'weapon' ? 1.3 : BASES[k].slot === 'ring' || BASES[k].slot === 'amulet' ? 0.6 : 1)]));
   return makeItem(rng, baseKey, ilvl, rollRarity(rng, bias));
 }
+
+export function isTwoHanded(it) { return !!it && !!BASES[it.base]?.twoHanded; }
 
 export function itemLines(it) {
   const out = [];
   if (it.dmg) out.push(`${it.dmg[0]}–${it.dmg[1]} Damage`, `${(1 / it.speed).toFixed(2)} Attacks per second`);
+  if (isTwoHanded(it)) out.push('Two-handed (no shield)');
   if (it.armor) out.push(`${it.armor} Armor`);
   if (it.block) out.push(`${it.block}% Block Chance`);
   for (const [k, v] of Object.entries(it.mods || {})) if (MODS[k]) out.push(MODS[k].fmt(v));
@@ -325,7 +332,7 @@ export function newCharacter(name, cls = 'knight') {
   const rng = new RNG(Date.now() ^ (Math.random() * 1e9));
   const equip = {};
   for (const [slot, base] of Object.entries(c.starter)) equip[slot] = makeItem(rng, base, 1, 'common');
-  equip.weapon.name = c.starterName; equip.weapon.dmg = [3, 6];
+  equip.weapon.name = c.starterName; equip.weapon.dmg = isTwoHanded(equip.weapon) ? [4, 8] : [3, 6];
   return {
     v: 1,
     name, cls, level: 1, xp: 0, gold: 50,
@@ -485,7 +492,7 @@ export function salvageYield(it, rng) {
 }
 
 // Craftable bases (what you pick) and the quality tiers (what it costs and how good it rolls).
-export const CRAFT_BASES = ['sword', 'axe', 'mace', 'staff', 'shield', 'helm', 'chest', 'gloves', 'boots', 'ring', 'amulet'];
+export const CRAFT_BASES = ['sword', 'axe', 'mace', 'staff', 'greataxe', 'greatsword', 'maul', 'shield', 'helm', 'chest', 'gloves', 'boots', 'ring', 'amulet'];
 export const RECIPES = {
   apprentice: { name: 'Apprentice', rarity: 'magic', ilvlBonus: 0, cost: { scrap: 6, dust: 3 }, gold: (l) => 40 + l * 12, desc: 'A magic item with 1–2 random bonuses.' },
   master: { name: 'Master', rarity: 'rare', ilvlBonus: 2, cost: { scrap: 10, dust: 6, shard: 3 }, gold: (l) => 150 + l * 30, desc: 'A rare item with 3–4 random bonuses.' },

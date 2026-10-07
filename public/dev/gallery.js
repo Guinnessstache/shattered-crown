@@ -11,7 +11,7 @@ import { BASES } from '/shared/rules.js';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') || 'sword';
-const VIEWS = ['sword', 'axe', 'mace', 'staff', 'shield', 'variety', 'heroes', 'armor'];
+const VIEWS = ['sword', 'axe', 'mace', 'staff', 'greataxe', 'greatsword', 'maul', 'shield', 'variety', 'heroes', 'armor'];
 document.getElementById('bar').innerHTML = VIEWS.map((v) => `<a href="?view=${v}" class="${v === view ? 'on' : ''}">${v}</a>`).join('');
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,11 +48,13 @@ await Promise.all([loadModelManifest(), loadBakedTextures()]);
 
 function place(obj, x, y, z = 0) { obj.position.set(x, y, z); obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); scene.add(obj); items.push(obj); }
 
-if (['sword', 'axe', 'mace', 'staff'].includes(view)) {
+if (['sword', 'axe', 'mace', 'staff', 'greataxe', 'greatsword', 'maul'].includes(view)) {
+  const big = ['greataxe', 'greatsword', 'maul'].includes(view);
   for (let t = 0; t < 6; t++) for (let r = 0; r < 4; r++) {
     const L = look(view, t, RAR[r], t + r);
     const w = weaponMesh(view, t, RAR[r], L);
-    place(w, t * 0.85, (3 - r) * 1.9, 0);
+    if (big) w.scale.setScalar(0.75);
+    place(w, t * 0.85, (3 - r) * 1.9 + (big ? 0.3 : 0), 0);
     if (r === 3) label(BASES[view].names[t], t * 0.85, 3 * 1.9 + 1.75, 0);
   }
   RAR.forEach((r, i) => label(r, -0.7, (3 - i) * 1.9 + 0.5, 0, RCOL[r]));

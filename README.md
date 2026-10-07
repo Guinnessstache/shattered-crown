@@ -172,3 +172,10 @@ Level art lives in `public/js/render/`:
 - **Armor** comes from the Blender hero models. `tools/blender/armor_kit.py` adds six tiers of chest, shoulder, bracer, glove, thigh, greave and boot pieces to every hero in that class's style (plate, brute, robe, wild). The game shows the piece matching each equipped item's tier and dresses it from that item (`gearPalette` in forge.js): its own metal, trim by rarity, enamel and runes in its stat colours.
 - Rebuild the hero models after editing the kit: run `tools/blender/build_models.py` in Blender. Exports are Draco-compressed; the game decodes them with three.js's bundled decoder.
 - **Gear gallery:** open `/dev/gallery.html` on your running server to see every weapon, shield and armor tier side by side (`?view=sword`, `axe`, `mace`, `staff`, `shield`, `variety`, `heroes`, `armor`). Drag to orbit.
+
+**Two-handed weapons.** There are three two-handed bases: Great Axe, Greatsword and Maul.
+- **Stats:** 1.35–1.55× damage, 0.72–0.85s per swing, 2.5–2.9 m reach. The Maul also has a stun chance.
+- **No shield:** equipping one moves your shield to your pack, and equipping a shield moves the two-hander back. If your pack has no room, the swap is refused.
+- **Berserker:** starts with a Great Axe.
+- **Looks:** each is a bigger version of the matching one-hand family, with a long two-hand grip.
+- **Where to get them:** they drop and are sold and crafted like other weapons.

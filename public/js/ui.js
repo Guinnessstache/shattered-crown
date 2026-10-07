@@ -441,7 +441,7 @@ export class UI {
     $('#mat-bar').innerHTML = Object.entries(MATERIALS).map(([k, d]) => `<span class="mat-chip ${m[k] ? '' : 'zero'}" title="${esc(d.desc)}" style="color:${d.color}">${d.icon} <b>${m[k] || 0}</b> ${esc(d.name)}</span>`).join('')
       + `<span class="mat-chip" style="color:#ffd76a">🪙 <b>${fmt(ch.gold)}</b></span>`;
     if (sel.tab === 'craft') {
-      const NAMES = { sword: 'Sword', axe: 'Axe', mace: 'Mace', shield: 'Shield', helm: 'Helm', chest: 'Armor', gloves: 'Gloves', boots: 'Boots', ring: 'Ring', amulet: 'Amulet' };
+      const NAMES = { sword: 'Sword', axe: 'Axe', mace: 'Mace', staff: 'Staff', greataxe: 'Great Axe', greatsword: 'Greatsword', maul: 'Maul', shield: 'Shield', helm: 'Helm', chest: 'Armor', gloves: 'Gloves', boots: 'Boots', ring: 'Ring', amulet: 'Amulet' };
       $('#craft-bases').innerHTML = CRAFT_BASES.map((b) => {
         const preview = { slot: BASES[b].slot, kind: BASES[b].kind, tier: Math.min(5, Math.floor((ch.level - 1) / 6)), rarity: 'magic' };
         return `<button type="button" data-base="${b}" class="${sel.base === b ? 'sel' : ''}"><img src="${itemIcon(preview)}" alt="">${NAMES[b]}</button>`;

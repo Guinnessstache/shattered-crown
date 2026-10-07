@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { Zone } from './zone.js';
 import { RNG } from '../shared/rng.js';
 import {
-  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, randomItem, makeItem,
+  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, isTwoHanded, randomItem, makeItem,
   potionPrice, MAX_POTIONS, INV_SIZE, SLOTS, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield,
 } from '../shared/rules.js';
 import { lookOf } from './db.js';
@@ -169,6 +169,13 @@ export class Party {
         const old = ch.equip[it.slot] || null;
         ch.equip[it.slot] = it;
         inv[idx] = old;
+        // Two hands or a shield: whichever was there goes to the pack (undo if there's no room).
+        const clash = it.slot === 'weapon' && isTwoHanded(it) ? 'offhand' : it.slot === 'offhand' && isTwoHanded(ch.equip.weapon) ? 'weapon' : null;
+        if (clash && ch.equip[clash]) {
+          const free = inv.findIndex((x) => !x);
+          if (free < 0) { ch.equip[it.slot] = old; inv[idx] = it; return clash === 'offhand' ? 'Make room in your pack for your shield first' : 'Make room in your pack for your two-handed weapon first'; }
+          inv[free] = ch.equip[clash]; ch.equip[clash] = null;
+        }
         break;
       }
       case 'unequip': {
