@@ -361,6 +361,18 @@ const TOWN = [
   '#....TT.....,,,,,,,.....TT.......#',
   '#...........,,,,,,,..........T...#',
   '##T...T....T,,,,,,,T....T.......##',
+  '#...........,,,,,,,..............#',
+  '#...........,,,,,,,...T..........#',
+  '#......T....,,,,,,,...........T..#',
+  '#...........,,,,,,,,.............#',
+  '#...........,,,,,,,,,..T.........#',
+  '#.......T...,,,,,,,,,..........T.#',
+  '#...........,,,,X,,,,............#',
+  '#T..........,,,,,,,,,...T........#',
+  '#........T..,,,,,,,,,...........T#',
+  '#............,,,,,,,.............#',
+  '#.T...........,,,,,......T.......#',
+  '#.........T......................#',
   '##################################',
 ];
 
@@ -376,7 +388,7 @@ export function generateTown() {
       const c = TOWN[y][x];
       const i = y * w + x;
       const wx = toWorld(x); const wy = toWorld(y);
-      map.ground[i] = ',DMSPLFCA'.includes(c) ? 1 : 0;
+      map.ground[i] = ',DMSPLFCAX'.includes(c) ? 1 : 0;
       if (c === '#') map.tiles[i] = T.WALL;
       else if (c === 'H' || c === 'F' || c === 'T' || c === 'W') map.tiles[i] = T.BLOCK;
       else map.tiles[i] = T.FLOOR;
@@ -385,6 +397,7 @@ export function generateTown() {
       if (c === 'P') map.start = { x: wx, y: wy };
       if (c === 'M') map.npcs.push({ id: 'merchant', type: 'merchant', name: 'Brannoc the Trader', x: wx, y: wy, rot: Math.PI / 2 });
       if (c === 'S') map.npcs.push({ id: 'smith', type: 'smith', name: 'Hilda the Smith', x: wx, y: wy, rot: -Math.PI / 2 });
+      if (c === 'X') map.arena = { x: wx, y: wy, r: 4.4 * TILE };
       if (c === 'A') map.npcs.push({ id: 'auctioneer', type: 'auctioneer', name: 'Vesna the Broker', x: wx, y: wy, rot: Math.PI });
       if (c === 'C') map.npcs.push({ id: 'crafter', type: 'crafter', name: 'Orlen the Artificer', x: wx, y: wy, rot: Math.PI });
       // Rectangular blocks: houses and the fountain become single props with a footprint.
@@ -399,6 +412,15 @@ export function generateTown() {
         map.props.push({ type: c === 'H' ? 'house' : 'fountain', x: cx, y: cy, w: bw, d: bh, rot, variant: (x + y) % 3 });
         if (c === 'F') map.lights.push({ x: cx, y: cy, h: 3, color: 0x88aaff });
       }
+    }
+  }
+  // Duel arena: a sanded ring with posts and four braziers (drawn by the renderer).
+  if (map.arena) {
+    const A = map.arena;
+    map.props.push({ type: 'arena', x: A.x, y: A.y, r: A.r });
+    for (const a of [0.785, 2.356, 3.927, 5.498]) {
+      const bx = A.x + Math.cos(a) * (A.r + 0.9); const by = A.y + Math.sin(a) * (A.r + 0.9);
+      map.props.push({ type: 'brazier', x: bx, y: by, rot: 0 });
     }
   }
   // Dungeon entrance: the two D tiles form the stair mouth; walk into it to descend.

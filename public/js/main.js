@@ -34,6 +34,7 @@ const ui = new UI({
   inv: (a) => socket.emit('inv', a, (r) => { if (!r?.ok) { ui.msg(r?.error || 'Could not do that', 'warn'); sfx.play('error'); } else sfx.play('click'); }),
   interact: () => game?.interact(),
   pickup: (id) => game?.pickup(id),
+  duel: (d) => socket.emit('duel', d, (r) => { if (!r?.ok) { ui.msg(r?.error || 'Could not do that', 'warn'); sfx.play('error'); } }),
   holdAttack: (on) => { unlockAudio(); input.holdAttack(on && !!game); },
   skill: (i) => game?.useSkill(i),
   potion: (k) => game?.potion(k),

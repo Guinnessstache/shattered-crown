@@ -60,6 +60,35 @@ export function buildLevel(map, quality) {
       }
       case 'mushrooms': batch.addObject(P.place(P.mushrooms(), x, y, rot, pr.s)); break;
       case 'crystal': batch.addObject(P.place(P.crystal(), x, y, rot, pr.s)); lights.push({ x, y, h: 1, color: 0x8a6aff, weak: true }); break;
+      case 'arena': {
+        const g = new THREE.Group();
+        const sand = new THREE.Mesh(new THREE.CircleGeometry(pr.r, 48), texMat('arena-sand', { kind: 'plaster', a: 0xc8a878, b: 0x9a7a50, seed: 77 }, { rough: 0.95, repeat: 3 }));
+        sand.rotation.x = -Math.PI / 2; sand.position.y = 0.025; sand.receiveShadow = true; g.add(sand);
+        const lineM = new THREE.MeshBasicMaterial({ color: 0x6a4a2a });
+        const line = new THREE.Mesh(new THREE.RingGeometry(pr.r - 0.18, pr.r, 64), lineM); line.rotation.x = -Math.PI / 2; line.position.y = 0.03; g.add(line);
+        const mid = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.25, 40), lineM); mid.rotation.x = -Math.PI / 2; mid.position.y = 0.03; g.add(mid);
+        const wood = texMat('arena-wood', THEME_TEX.common.darkwood, { rough: 0.9 });
+        const rope = new THREE.MeshStandardMaterial({ color: 0xb89a6a, roughness: 0.95 });
+        const n = 22;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          if (Math.abs(Math.sin(a) + 1) < 0.25) continue; // gap facing the town (north)
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.2, 7), wood);
+          post.position.set(Math.cos(a) * (pr.r + 0.25), 0.6, Math.sin(a) * (pr.r + 0.25)); post.castShadow = true; g.add(post);
+          const a2 = ((i + 1) / n) * Math.PI * 2;
+          if (Math.abs(Math.sin(a2) + 1) < 0.25) continue;
+          const p1 = new THREE.Vector3(Math.cos(a) * (pr.r + 0.25), 1.0, Math.sin(a) * (pr.r + 0.25));
+          const p2 = new THREE.Vector3(Math.cos(a2) * (pr.r + 0.25), 1.0, Math.sin(a2) * (pr.r + 0.25));
+          const len = p1.distanceTo(p2);
+          const r = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, len, 5), rope);
+          r.position.copy(p1).add(p2).multiplyScalar(0.5); r.position.y -= 0.06;
+          r.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
+          g.add(r);
+        }
+        g.position.set(x, 0, y);
+        root.add(g);
+        break;
+      }
       case 'brazier': {
         batch.addObject(P.place(P.brazier(), x, y, rot));
         const f = P.flame(0xff7a30, 1.3); f.position.set(x, 1.35, y); root.add(f); anim.push(f);

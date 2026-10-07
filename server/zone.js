@@ -3,6 +3,7 @@
 // (client-side prediction) and the server checks those moves.
 import { buildMap, moveCircle, lineOfSight, distanceField, toTile, TILE, isBossFloor } from '../shared/map.js';
 import { RNG, hashSeed } from '../shared/rng.js';
+import { DUEL, settleDuel } from './duel.js';
 import { MONSTERS, SKILLS, CLASSES, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
 
 const TICK = 1 / 20;
@@ -37,6 +38,7 @@ export class Zone {
     this.travel = null; // pending stairs countdown
     this.timers = []; // [time, fn] for delayed hits (Frenzy's second strike, Whirlwind pulses)
     this.areas = []; // lingering ground effects (Acid Pool)
+    this.duel = null; // { a, b, stake, state: 'countdown'|'fight', at, ends }
     const partySize = Math.max(1, party.members.size);
     if (this.spec.kind === 'dungeon') {
       for (const s of this.map.spawns) this.spawnMonster(s.type, s.x, s.y, { elite: s.elite, boss: s.boss, partySize, quiet: true });
@@ -134,6 +136,7 @@ export class Zone {
     for (const e of [...this.ents.values()]) if (e.owner === pid) this.ents.delete(e.id);
     for (const e of [...this.ents.values()]) if (e.k === 'w' && e.by === pid) this.delEnt(e.id);
     this.areas = this.areas.filter((a) => a.by !== pid);
+    if (this.duel && (this.duel.a === pid || this.duel.b === pid)) this.endDuel(this.duel.a === pid ? this.duel.b : this.duel.a, 'left');
   }
 
   refreshStats(pid) {
@@ -148,6 +151,7 @@ export class Zone {
   onMove(pid, d) {
     const p = this.players.get(pid);
     if (!p || p.dead || p.dashing) return;
+    if (this.duel?.state === 'countdown' && (this.duel.a === pid || this.duel.b === pid)) { this.party.emitTo(pid, 'correct', { x: r2(p.x), y: r2(p.y) }); return; }
     const x = Number(d?.x); const y = Number(d?.y); const rot = Number(d?.rot);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     const dt = Math.max(0.05, this.time - p.lastPosAt);
@@ -169,7 +173,7 @@ export class Zone {
   }
 
   // ------------------------------------------------------------ combat: players
-  canAct(p) { return p && !p.dead && !p.dashing; }
+  canAct(p) { return p && !p.dead && !p.dashing && !(this.duel?.state === 'countdown' && (this.duel.a === p.pid || this.duel.b === p.pid)); }
 
   onAttack(pid, d) {
     const p = this.players.get(pid);
@@ -381,6 +385,12 @@ export class Zone {
       if (e.k === 'm' && e.state !== 'dead' && Math.hypot(e.x - x, e.y - y) <= rad + e.r) out.push(e);
       else if (e.k === 'b' && Math.hypot(e.x - x, e.y - y) <= rad + e.r) out.push(e);
     }
+    if (this.duel?.state === 'fight') {
+      for (const pid of [this.duel.a, this.duel.b]) {
+        const q = this.players.get(pid);
+        if (q && !q.dead && Math.hypot(q.x - x, q.y - y) <= rad + q.r) out.push(q);
+      }
+    }
     return out;
   }
 
@@ -401,6 +411,7 @@ export class Zone {
 
   damageTarget(p, e, mult, { stun = 0, knock = 0 } = {}) {
     if (e.k === 'b') { this.breakBreakable(e, p); return; }
+    if (e.k === 'p') { this.duelHit(p, e, mult); return; }
     const s = p.stats;
     let dmg = this.rng.int(s.dmg[0], s.dmg[1]) * mult;
     const crit = this.rng.chance(s.crit / 100);
@@ -656,6 +667,13 @@ export class Zone {
       if (dmg <= 0) { this.events.push({ t: 'dmg', id: p.id, v: 0, w: 1 }); return; }
     }
     p.hp -= dmg;
+    const D = this.duel;
+    if (D?.state === 'fight' && (D.a === p.pid || D.b === p.pid) && p.hp <= 0) {
+      p.hp = 1;
+      this.events.push({ t: 'dmg', id: p.id, v: dmg, hp: 1 });
+      this.endDuel(D.a === p.pid ? D.b : D.a, 'ko');
+      return;
+    }
     this.events.push({ t: 'dmg', id: p.id, v: dmg, hp: Math.max(0, Math.ceil(p.hp)) });
     if (p.hp <= 0) this.killPlayer(p);
   }
@@ -849,7 +867,7 @@ export class Zone {
   updateShot(e, nx, ny) {
     const p = this.players.get(e.by);
     let hitT = null;
-    for (const t of this.targetsNear(nx, ny, 0.35)) { hitT = t; break; }
+    for (const t of this.targetsNear(nx, ny, 0.35)) { if (t.pid === e.by) continue; hitT = t; break; }
     const wall = !this.map.walkableAt(nx, ny);
     e.x = nx; e.y = ny;
     if (!hitT && !wall && e.life > 0) return;
@@ -879,6 +897,62 @@ export class Zone {
     });
   }
 
+
+  // ------------------------------------------------------------ duels (town arena)
+  startDuel(a, b, stake) {
+    const A = this.map.arena;
+    const pa = this.players.get(a); const pb = this.players.get(b);
+    if (!A || !pa || !pb) return;
+    this.duel = { a, b, stake, state: 'countdown', at: this.time + DUEL.countdown, ends: this.time + DUEL.countdown + DUEL.timeLimit };
+    for (const [q, side] of [[pa, -1], [pb, 1]]) {
+      q.x = A.x + side * A.r * 0.55; q.y = A.y; q.rot = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      q.dead = false; q.hp = q.stats.hpMax; q.mp = q.stats.mpMax; q.lastPosAt = this.time;
+      this.party.emitTo(q.pid, 'correct', { x: q.x, y: q.y, force: true });
+    }
+    for (const e of [...this.ents.values()]) if (e.k === 'w' && (e.by === a || e.by === b)) this.delEnt(e.id);
+    this.party.broadcast('duel', { state: 'countdown', a: pa.id, b: pb.id, an: pa.name, bn: pb.name, stake, secs: DUEL.countdown, x: A.x, y: A.y, r: A.r });
+  }
+
+  duelHit(p, e, mult) {
+    const D = this.duel;
+    if (!D || D.state !== 'fight' || e === p || e.dead) return;
+    const pair = [D.a, D.b];
+    if (!pair.includes(p.pid) || !pair.includes(e.pid)) return;
+    const s = p.stats;
+    let dmg = this.rng.int(s.dmg[0], s.dmg[1]) * mult * DUEL.pvpDamage;
+    if (this.rng.chance(s.crit / 100)) dmg *= 1.75;
+    if (s.lifeSteal && p.hp > 0) p.hp = Math.min(s.hpMax, p.hp + dmg * s.lifeSteal / 100);
+    this.hurtPlayer(e, Math.max(1, Math.round(dmg)), { level: p.member.char.level });
+  }
+
+  updateDuel() {
+    const D = this.duel; if (!D) return;
+    const A = this.map.arena;
+    if (D.state === 'countdown') {
+      // Hold both fighters in place until the bell.
+      if (this.time >= D.at) { D.state = 'fight'; this.party.broadcast('duel', { state: 'fight' }); }
+      return;
+    }
+    if (this.time >= D.ends) { this.endDuel(null, 'time'); return; }
+    for (const pid of [D.a, D.b]) {
+      const q = this.players.get(pid);
+      if (q && Math.hypot(q.x - A.x, q.y - A.y) > A.r + 1.2) { this.endDuel(pid === D.a ? D.b : D.a, 'ring'); return; }
+    }
+  }
+
+  endDuel(winner, reason) {
+    const D = this.duel; if (!D) return;
+    this.duel = null;
+    for (const pid of [D.a, D.b]) {
+      const q = this.players.get(pid);
+      if (q) { q.hp = q.stats.hpMax; q.mp = q.stats.mpMax; q.dead = false; }
+    }
+    const loser = winner ? (winner === D.a ? D.b : D.a) : null;
+    const name = (pid) => this.players.get(pid)?.name || this.party.members.get(pid)?.char.name || 'Someone';
+    settleDuel(this.party, D, winner);
+    this.party.broadcast('duel', { state: 'end', winner: winner ? `p${winner}` : null, wn: winner ? name(winner) : null, ln: loser ? name(loser) : null, stake: D.stake, reason });
+  }
+
   // ------------------------------------------------------------ main loop
   tick() {
     const dt = TICK;
@@ -904,8 +978,11 @@ export class Zone {
       if (p.buffs.bloodlust && p.buffs.bloodlust.until < now) { delete p.buffs.bloodlust; p.stats = p.member.derived(p.buffs); }
       if (p.buffs.ward && p.buffs.ward.until < now) { delete p.buffs.ward; this.events.push({ t: 'fx', k: 'ward', id: p.id, on: 0 }); }
       if (p.hot) { if (p.hot.until < now) p.hot = null; else p.hp = Math.min(p.stats.hpMax, p.hp + p.hot.perSec * dt); }
-      p.hp = Math.min(p.stats.hpMax, p.hp + p.stats.hpRegen * dt * (this.spec.kind === 'town' ? 20 : 1));
-      p.mp = Math.min(p.stats.mpMax, p.mp + p.stats.mpRegen * dt * (this.spec.kind === 'town' ? 10 : 1));
+      // Town heals you quickly, except while you're fighting a duel.
+      const dueling = this.duel && (this.duel.a === p.pid || this.duel.b === p.pid);
+      const fast = this.spec.kind === 'town' && !dueling;
+      p.hp = Math.min(p.stats.hpMax, p.hp + p.stats.hpRegen * dt * (fast ? 20 : 1));
+      p.mp = Math.min(p.stats.mpMax, p.mp + p.stats.mpRegen * dt * (fast ? 10 : 1));
       // Auto-pickup gold and potions you walk over.
       for (const e of this.ents.values()) {
         if (e.k === 'l' && e.owner === p.pid && !e.item && Math.hypot(e.x - p.x, e.y - p.y) < 1.4) this.takeLoot(p, e);
@@ -919,6 +996,7 @@ export class Zone {
     }
     this.updateProjectiles(dt);
     this.updateAreas();
+    this.updateDuel();
     if (this.timers.length) {
       const due = this.timers.filter((t) => t[0] <= now);
       if (due.length) { this.timers = this.timers.filter((t) => t[0] > now); for (const [, fn] of due) fn(); }

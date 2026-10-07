@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { Server } from 'socket.io';
 import { openDb, MAX_CHARS } from './db.js';
 import { auctionAction, setOnlineLookup } from './auction.js';
+import { duelAction } from './duel.js';
 import { loadSecret, hashPassword, checkPassword, signToken, verifyToken, validUsername, validPassword, verifyGoogleToken, rateLimited } from './auth.js';
 import { Party, Member, parties } from './party.js';
 import { newCharacter, validName, CLASSES, xpToNext, derive, GAME_TITLE } from '../shared/rules.js';
@@ -180,6 +181,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       if (!member?.party) return cb({ error: 'Not in a game' });
       try { cb(await auctionAction(db, member, d || {})); } catch (e) { console.error('auction', e); cb({ error: 'Server error' }); }
     });
+    socket.on('duel', inParty((d) => duelAction(member.party, member, d)));
     socket.on('chat', inParty((d) => {
       const text = String(d.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
       if (text) member.party.broadcast('chat', { pid: member.pid, name: member.char.name, text });

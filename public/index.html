@@ -122,6 +122,11 @@
       </div>
     </div>
 
+    <div id="duel-bar" class="duel-bar hidden">
+      <div class="side a"><b></b><div class="bar"><i></i></div></div>
+      <div class="pot">⚔<span></span></div>
+      <div class="side b"><b></b><div class="bar"><i></i></div></div>
+    </div>
     <div id="boss-bar" class="boss-bar hidden"><div class="name"></div><div class="bar"><i></i></div></div>
     <div id="target-bar" class="target-bar hidden"><div class="name"></div><div class="bar"><i></i></div></div>
 
@@ -292,6 +297,25 @@
       <p class="muted" style="font-size:12px;margin:6px 0 0">Microphone, speakers and volume are in ☰ Menu → Voice &amp; audio.</p>
       <div class="pad-hints"><b>A</b> Select · <b>B</b> Close</div>
       <div class="row-end"><button class="btn ghost" data-close type="button">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Duel: set the stake -->
+  <div id="duel-setup" class="modal hidden">
+    <div class="panel">
+      <h2>Challenge <span id="duel-target"></span></h2>
+      <p class="muted" style="font-size:13px;margin:0 0 10px">You'll both be taken to the arena south of the square. First to drop the other wins both stakes. Nobody dies, and leaving the ring forfeits.</p>
+      <div class="ah-price"><button class="btn small" id="duel-dn" type="button" aria-label="Lower stake">−</button><input id="duel-stake" type="number" min="0" value="0" inputmode="numeric" aria-label="Stake"><button class="btn small" id="duel-up" type="button" aria-label="Raise stake">+</button><span class="muted" style="font-size:12px">gold each</span></div>
+      <div class="ah-note" id="duel-note"></div>
+      <div class="row-end"><button class="btn ghost" data-close type="button">Cancel</button><button class="btn gold" id="duel-send" type="button">Challenge</button></div>
+    </div>
+  </div>
+  <!-- Duel: incoming challenge -->
+  <div id="duel-invite" class="modal hidden">
+    <div class="panel">
+      <h2>⚔ Duel challenge</h2>
+      <p id="duel-invite-text"></p>
+      <div class="row-end"><button class="btn ghost" id="duel-decline" type="button">Decline</button><button class="btn gold" id="duel-accept" type="button">Accept</button></div>
     </div>
   </div>
 

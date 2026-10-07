@@ -451,3 +451,14 @@ body.cam-drag, body.cam-drag canvas { cursor: grabbing; }
 }
 .sheet-inner, .screen, .panel, button { touch-action: manipulation; }
 .sheet-inner, .screen { touch-action: pan-y; }
+
+/* ---------- duels */
+.duel-bar { position: absolute; top: max(10px, var(--safe-t, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 10px; background: rgba(10,6,4,.72); border: 1px solid rgba(227,184,102,.45); pointer-events: none; z-index: 5; }
+.duel-bar .side { width: min(200px, 30vw); }
+.duel-bar .side b { display: block; font-family: var(--display); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duel-bar .side.b { text-align: right; }
+.duel-bar .bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 3px; }
+.duel-bar .bar i { display: block; height: 100%; background: linear-gradient(90deg, #c02020, #ff5a3a); transform-origin: left; }
+.duel-bar .side.b .bar i { transform-origin: right; }
+.duel-bar .pot { color: #ffd76a; font-weight: 700; font-size: 15px; white-space: nowrap; }
+#party-list [data-duel] { margin-left: 6px; }

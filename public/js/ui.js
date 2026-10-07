@@ -202,13 +202,55 @@ export class UI {
     $('#mic-btn').classList.toggle('hidden', p.solo);
     $('#party-code-line').innerHTML = p.solo ? 'Solo game' : `Party code <b>${esc(p.code)}</b> <button class="btn small" id="copy-code" type="button">Copy</button>`;
     $('#copy-code')?.addEventListener('click', () => { navigator.clipboard?.writeText(p.code).then(() => this.msg('Party code copied', 'good')).catch(() => {}); });
-    $('#party-list').innerHTML = p.members.map((m) => `<div><span>${m.leader ? '👑 ' : ''}${esc(m.name)}${m.pid === myPid ? ' (you)' : ''}</span><span>Lv ${m.level} ${m.mic ? '🎙' : ''}</span></div>`).join('');
+    $('#party-list').innerHTML = p.members.map((m) => `<div><span>${m.leader ? '👑 ' : ''}${esc(m.name)}${m.pid === myPid ? ' (you)' : ''}</span><span>Lv ${m.level} ${m.mic ? '🎙' : ''}${!p.solo && m.pid !== myPid ? ` <button class="btn small" data-duel="${m.pid}" type="button">⚔ Duel</button>` : ''}</span></div>`).join('');
+    $$('#party-list [data-duel]').forEach((b) => b.addEventListener('click', () => { const m = p.members.find((x) => x.pid === b.dataset.duel); if (m) this.openDuelSetup(m); }));
+  }
+
+  // ------------------------------------------------------------ duels
+  openDuelSetup(m) {
+    this.closePanels();
+    this.duelTo = m;
+    $('#duel-target').textContent = m.name;
+    const gold = this.char?.gold || 0;
+    const inp = $('#duel-stake');
+    inp.value = Math.min(Number(inp.value) || 0, gold);
+    const note = () => { const v = Math.max(0, Math.min(gold, Math.floor(Number(inp.value) || 0))); inp.value = v; $('#duel-note').textContent = v ? `Winner takes ${(v * 2).toLocaleString()} gold. You have ${gold.toLocaleString()}.` : 'A friendly duel with no gold on the line.'; };
+    const step = (up) => { const v = Number(inp.value) || 0; const st = v < 50 ? 10 : v < 500 ? 50 : v < 5000 ? 250 : 1000; inp.value = Math.max(0, up ? v + st : v - st); note(); };
+    $('#duel-dn').onclick = () => step(false); $('#duel-up').onclick = () => step(true);
+    inp.onchange = note; inp.onkeydown = (e) => e.stopPropagation();
+    $('#duel-send').onclick = () => { this.h.duel({ op: 'challenge', to: m.pid, stake: Number(inp.value) || 0 }); this.closePanels(); };
+    note();
+    $('#duel-setup').classList.remove('hidden');
+    this.h.panelsChanged?.(true);
+    this.focusFirst($('#duel-setup'));
+  }
+  duelInvite(d) {
+    if (!d) { if (!$('#duel-invite').classList.contains('hidden')) this.closePanels(); return; }
+    this.closePanels();
+    $('#duel-invite-text').innerHTML = `<b>${esc(d.name)}</b> challenges you to a duel${d.stake ? ` for <b style="color:#ffd76a">${fmt(d.stake)} gold</b> each — winner takes ${fmt(d.stake * 2)}` : ' (no gold on the line)'}.`;
+    $('#duel-accept').onclick = () => { this.h.duel({ op: 'accept' }); this.closePanels(); };
+    $('#duel-decline').onclick = () => { this.h.duel({ op: 'decline' }); this.closePanels(); };
+    $('#duel-invite').classList.remove('hidden');
+    this.h.panelsChanged?.(true);
+    this.focusFirst($('#duel-invite'));
+  }
+  duelBar(d) {
+    const el = $('#duel-bar');
+    if (!d) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.querySelector('.a b').textContent = d.an; el.querySelector('.b b').textContent = d.bn;
+    el.querySelector('.pot span').textContent = d.stake ? ` ${fmt(d.stake * 2)}g` : '';
+  }
+  duelHp(aFrac, bFrac) {
+    const el = $('#duel-bar');
+    el.querySelector('.a i').style.transform = `scaleX(${Math.max(0, aFrac)})`;
+    el.querySelector('.b i').style.transform = `scaleX(${Math.max(0, bFrac)})`;
   }
 
   // ------------------------------------------------------------ panels
   anyOpen() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').some((m) => m.id !== 'create-modal'); }
   closePanels() {
-    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel']) $(`#${id}`).classList.add('hidden');
+    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
     this.h.panelsChanged?.(false);

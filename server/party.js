@@ -23,6 +23,8 @@ export class Member {
   constructor({ pid, socket, accountId, charId, char }) {
     Object.assign(this, { pid, socket, accountId, charId, char });
     char.mats ||= {}; // heroes made before crafting existed
+    // A duel was cut short by a server restart: give the stake back.
+    if (char.duelEscrow) { char.gold += char.duelEscrow; delete char.duelEscrow; }
     this.dirty = false;
     this.hp = null; this.mp = null;
     this.shops = null;
@@ -72,6 +74,10 @@ export class Party {
 
   async remove(member, why = 'left') {
     if (!this.members.has(member.pid)) return;
+    if (this.duelInvite && (this.duelInvite.from === member.pid || this.duelInvite.to === member.pid)) {
+      const other = this.duelInvite.from === member.pid ? this.duelInvite.to : this.duelInvite.from;
+      this.duelInvite = null; clearTimeout(this.duelInviteTimer); this.emitTo(other, 'duelInvite', null);
+    }
     this.zone?.removePlayer(member.pid);
     this.members.delete(member.pid);
     member.socket.leave(this.room);
@@ -324,6 +330,7 @@ export class Party {
 
   requestTravel(pid, dest) {
     if (this.travelTimer) return;
+    if (this.zone?.duel) { this.emitTo(pid, 'msg', { text: 'Wait for the duel to finish', kind: 'warn' }); return; }
     if (dest.kind === 'dungeon') {
       const floor = Math.max(1, Math.floor(Number(dest.floor) || 1));
       const max = Math.max(...[...this.members.values()].map((m) => m.char.maxFloor || 1));

@@ -96,6 +96,8 @@ export class Game {
       this.ui.partyPanel(p, this.pid);
       if (!p.solo) this.voice.sync(p.members);
     });
+    this.on('duelInvite', (d) => { this.ui.duelInvite(d); if (d) this.sfx.play('warcry'); });
+    this.on('duel', (d) => this.onDuel(d));
     this.on('peerLeft', ({ pid }) => this.world.remove(`p${pid}`));
   }
 
@@ -147,6 +149,10 @@ export class Game {
   // ------------------------------------------------------------ server updates
   onSnap(s) {
     if (!this.map) return;
+    if (this.duel) {
+      const a = s.p.find((r) => r[0] === this.duel.a); const b = s.p.find((r) => r[0] === this.duel.b);
+      if (a && b) this.ui.duelHp(a[4] / a[5], b[4] / b[5]);
+    }
     for (const [id, x, y, rot, hp, hpMax, mp, mpMax, dead] of s.p) {
       const v = this.world.ents.get(id);
       if (!v) continue;
@@ -204,6 +210,7 @@ export class Game {
           if (ev.b) { W.fx.number(v.x, h, v.y, 'Block', 'block'); this.sfx.play('block'); v.anim?.play('bash', 0.15); break; }
           if (ev.w) { W.fx.number(v.x, h, v.y, 'Absorbed', 'block'); this.sfx.play('block'); break; }
           if (ev.id === this.myId) { this.hp = ev.hp; W.fx.number(v.x, h, v.y, ev.v, 'me'); this.sfx.play('hurt'); W.shakeCam(0.18); this.input.rumble(90, 0.5, 0.3); }
+          else if (this.duel?.live && (ev.id === this.duel.a || ev.id === this.duel.b)) { W.fx.number(v.x, h, v.y, ev.v, ''); this.sfx.play('hit'); }
           if (v.anim) v.anim.flinch = 0.15;
           W.fx.emit(v.x, 1.1, v.y, 8, { color: 0xb01010, speed: 2, size: 0.18, life: 0.4 });
         } else {
@@ -353,6 +360,36 @@ export class Game {
     this.sfx.play('potion');
   }
 
+  // ------------------------------------------------------------ duels
+  onDuel(d) {
+    const W = this.world;
+    if (d.state === 'countdown') {
+      this.duel = { ...d, live: false };
+      this.ui.duelBar(d);
+      if (d.a === this.myId || d.b === this.myId) {
+        this.dash = null; this.ui.closePanels();
+        let n = d.secs; const tick = () => { if (!this.duel || this.duel.live) return; this.ui.center(String(n), 900); this.sfx.play('click'); n--; if (n > 0) setTimeout(tick, 1000); };
+        tick();
+      } else this.ui.msg(`${d.an} and ${d.bn} are dueling in the arena${d.stake ? ` for ${(d.stake * 2).toLocaleString()} gold` : ''}!`, 'info');
+      W.fx.pool(d.x, d.y, d.r, 0xffa040, d.secs + 0.5, { opacity: 0.12 });
+    }
+    if (d.state === 'fight' && this.duel) {
+      this.duel.live = true;
+      if (this.inDuel) { this.ui.center('Fight!', 1200); this.sfx.play('warcry'); }
+    }
+    if (d.state === 'end') {
+      const mine = this.duel && (this.duel.a === this.myId || this.duel.b === this.myId);
+      this.duel = null; this.ui.duelBar(null);
+      const why = { ring: ' (left the ring)', left: ' (opponent left)', time: '' }[d.reason] || '';
+      if (!d.winner) this.ui.center('Draw — stakes returned', 2500);
+      else if (d.winner === this.myId) { this.ui.center(`Victory!${d.stake ? ` +${(d.stake * 2).toLocaleString()} gold` : ''}`, 3000); this.sfx.play('levelup'); }
+      else if (mine) { this.ui.center(`${d.wn} wins the duel${why}`, 3000); this.sfx.play('error'); }
+      else this.ui.msg(`${d.wn} defeated ${d.ln} in a duel${d.stake ? ` and won ${(d.stake * 2).toLocaleString()} gold` : ''}${why}`, 'info');
+    }
+  }
+  get inDuel() { return !!this.duel?.live && (this.duel.a === this.myId || this.duel.b === this.myId); }
+  get duelFoe() { if (!this.inDuel) return null; return this.world.ents.get(this.duel.a === this.myId ? this.duel.b : this.duel.a); }
+
   get skillIds() { return CLASSES[this.char?.cls]?.skills || CLASSES.knight.skills; }
   get ranged() { return !!CLASSES[this.char?.cls]?.ranged; }
 
@@ -366,7 +403,7 @@ export class Game {
     let best = null; let bs = 1e9;
     const face = me.rot;
     for (const v of this.world.ents.values()) {
-      if ((v.k !== 'm' && v.k !== 'b') || v.dead) continue;
+      if (((v.k !== 'm' && v.k !== 'b') && v !== this.duelFoe) || v.dead) continue;
       const d = Math.hypot(v.x - me.x, v.y - me.y);
       if (d > (this.ranged ? 12 : 5.5)) continue;
       let da = Math.atan2(v.x - me.x, v.y - me.y) - face; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
@@ -474,7 +511,8 @@ export class Game {
       if (!d.leap) W.fx.emit(me.x, 0.3, me.y, 2, { color: 0xd0c0a0, speed: 0.5, up: 1, size: 0.3, life: 0.4, gravity: 0 });
       if (k >= 1) { this.dash = null; this.sendPos(true); }
     } else if (!this.dead) {
-      const mv = this.input.moveVector();
+      const frozen = this.duel && !this.duel.live && (this.duel.a === this.myId || this.duel.b === this.myId);
+      const mv = frozen ? { x: 0, y: 0 } : this.input.moveVector();
       const ui = this.ui.anyOpen();
       let mx = 0; let my = 0;
       if (!ui && (mv.x || mv.y)) {
