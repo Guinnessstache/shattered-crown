@@ -168,10 +168,11 @@ export class Game {
         this.ui.partyHp(v.e.pid, hp, hpMax, dead);
       }
     }
-    for (const [id, x, y, rot, hp, st] of s.m) {
+    for (const [id, x, y, rot, hp, st, fl] of s.m) {
       const v = this.world.ents.get(id);
       if (!v) continue;
-      v.tx = x; v.ty = y; v.trot = rot; v.hp = hp;
+      v.tx = x; v.ty = y; v.trot = rot; v.hp = hp; v.fl = fl || 0;
+      if (v.anim && v.k === 'm') { const chill = !!(v.fl & 2); if (chill !== v.chilled) { v.chilled = chill; v.anim.tint = chill ? 0x5aa8ff : null; } }
       if (v.anim) { v.anim.windup = st === 2 && !MONSTERS[v.e.type]?.ranged; v.anim.stunned = st === 3; }
     }
     for (const ev of s.ev) this.onEvent(ev);
@@ -215,7 +216,8 @@ export class Game {
           W.fx.emit(v.x, 1.1, v.y, 8, { color: 0xb01010, speed: 2, size: 0.18, life: 0.4 });
         } else {
           v.hp = ev.hp;
-          W.fx.number(v.x, h, v.y, ev.v, ev.c ? 'crit' : '');
+          W.fx.number(v.x, h, v.y, ev.v, `${ev.c ? 'crit' : ''}${ev.el ? ` el-${ev.el}` : ''}${ev.dot ? ' dot' : ''}`);
+          if (ev.dot) { if (v.bar) v.hp = ev.hp; break; }
           v.anim?.hit();
           const bony = v.e.type === 'skeleton' || v.e.type === 'archer';
           W.fx.emit(v.x, h * 0.6, v.y, ev.c ? 14 : 7, { color: bony ? 0xfff0d0 : v.e.type === 'imp' ? 0xff8030 : 0x9a1010, speed: 3, size: 0.2, life: 0.45 });
@@ -280,6 +282,7 @@ export class Game {
     if (ev.k === 'acid') { W.fx.pool(ev.x, ev.y, ev.r, 0x5aff3a, ev.dur); W.fx.emit(ev.x, 0.4, ev.y, 20, { color: 0x8aff5a, speed: 2.5, up: 2, size: 0.3, life: 0.6 }); this.sfx.play('potion'); this.acidFx(ev); }
     if (ev.k === 'roots') { W.fx.roots(ev.x, ev.y, ev.r, ev.dur); this.sfx.play('break'); }
     if (ev.k === 'rejuv') { W.fx.pool(ev.x, ev.y, ev.r, 0x5aff8a, 0.9, { opacity: 0.25, pulse: false }); W.fx.ring(ev.x, ev.y, ev.r * 0.8, 0x8aff9a, 50, 0.4); this.sfx.play('potion'); }
+    if (ev.k === 'zap') { W.fx.zap(ev.x, ev.y, ev.x2, ev.y2); this.sfx.play('crit'); }
     if (ev.k === 'thornhit') W.fx.emit(ev.x, 1.0, ev.y, 6, { color: 0x8ac04a, speed: 2, size: 0.14, life: 0.3 });
     if (ev.k === 'bloodlust') { const v = W.ents.get(ev.id); if (v) { W.fx.emit(v.x, 1, v.y, 30, { color: 0xff2020, speed: 2, up: 3, size: 0.3, life: 0.8, gravity: -1 }); W.fx.shockwave(v.x, v.y, 2.5, 0xff3030); } }
     if (ev.k === 'ward') {

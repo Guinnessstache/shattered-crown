@@ -462,3 +462,12 @@ body.cam-drag, body.cam-drag canvas { cursor: grabbing; }
 .duel-bar .side.b .bar i { transform-origin: right; }
 .duel-bar .pot { color: #ffd76a; font-weight: 700; font-size: 15px; white-space: nowrap; }
 #party-list [data-duel] { margin-left: 6px; }
+
+/* ---------- elemental items */
+.slot .elb { position: absolute; left: 3px; bottom: 1px; font-size: 12px; filter: drop-shadow(0 0 3px rgba(0,0,0,.9)); }
+.dmg.el-fire { color: #ff8a3a; }
+.dmg.el-frost { color: #9ae0ff; }
+.dmg.el-shock { color: #c8a8ff; }
+.dmg.el-poison { color: #7aff5a; }
+.dmg.el-thorns { color: #a8d060; }
+.dmg.dot { font-size: 13px; opacity: .9; }

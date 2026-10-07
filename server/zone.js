@@ -416,11 +416,16 @@ export class Zone {
     let dmg = this.rng.int(s.dmg[0], s.dmg[1]) * mult;
     const crit = this.rng.chance(s.crit / 100);
     if (crit) dmg *= 1.75;
-    dmg = Math.max(1, Math.round(dmg));
+    // Elemental weapons add their damage to every hit (scaled like the hit itself).
+    const el = s.elem || {};
+    const elDmg = ((el.fire || 0) + (el.frost || 0) + (el.shock || 0) + (el.poison || 0)) * mult;
+    const mainEl = el.fire ? 'fire' : el.frost ? 'frost' : el.shock ? 'shock' : el.poison ? 'poison' : 0;
+    dmg = Math.max(1, Math.round(dmg + elDmg));
     e.hp -= dmg;
-    this.events.push({ t: 'dmg', id: e.id, v: dmg, c: crit ? 1 : 0, hp: Math.max(0, e.hp) });
+    this.events.push({ t: 'dmg', id: e.id, v: dmg, c: crit ? 1 : 0, hp: Math.max(0, e.hp), el: mainEl || undefined });
     if (s.lifeSteal && p.hp > 0) p.hp = Math.min(s.hpMax, p.hp + dmg * s.lifeSteal / 100);
     if (e.hp <= 0) { this.killMonster(e, p); return; }
+    if (mainEl) this.applyElements(p, e, el, mult);
     this.aggro(e, p);
     const stunFor = stun || (s.stunChance && this.rng.chance(s.stunChance) ? 0.8 : 0);
     if (stunFor && !e.boss) { e.stunUntil = this.time + stunFor; if (e.state === 'windup') e.state = 'chase'; }
@@ -432,6 +437,49 @@ export class Zone {
     }
     // Light hit-stagger on small monsters makes melee feel weighty.
     if (!e.boss && !e.elite && e.state === 'windup' && this.rng.chance(0.25)) { e.state = 'chase'; e.t = 0; }
+  }
+
+  // ------------------------------------------------------------ elemental effects
+  applyElements(p, e, el, mult) {
+    const now = this.time;
+    if (el.fire) e.burn = { dps: el.fire * 0.5 * Math.max(0.5, mult), until: now + 2, by: p.pid };
+    if (el.frost) { e.slowUntil = Math.max(e.slowUntil || 0, now + 1.5); e.chillUntil = now + 1.5; }
+    if (el.poison) {
+      const stacks = e.poison && e.poison.until > now ? Math.min(5, e.poison.stacks + 1) : 1;
+      e.poison = { stacks, per: el.poison * 0.4, until: now + 3, by: p.pid };
+    }
+    if (el.shock && this.rng.chance(0.2)) {
+      let best = null; let bd = 4.5;
+      for (const o of this.ents.values()) {
+        if (o.k !== 'm' || o === e || o.state === 'dead') continue;
+        const d = Math.hypot(o.x - e.x, o.y - e.y);
+        if (d < bd && lineOfSight(this.map, e.x, e.y, o.x, o.y)) { bd = d; best = o; }
+      }
+      if (best) {
+        this.events.push({ t: 'fx', k: 'zap', x: r1(e.x), y: r1(e.y), x2: r1(best.x), y2: r1(best.y) });
+        this.rawDamage(p, best, Math.round(el.shock * 2), 'shock');
+      }
+    }
+  }
+
+  // Damage that skips crits and elements (damage over time, lightning arcs, thorns).
+  rawDamage(p, m, amount, el) {
+    if (!m || m.k !== 'm' || m.state === 'dead') return;
+    const v = Math.max(1, Math.round(amount));
+    m.hp -= v;
+    this.events.push({ t: 'dmg', id: m.id, v, hp: Math.max(0, m.hp), el, dot: 1 });
+    if (m.hp <= 0) { this.killMonster(m, p || [...this.players.values()][0]); return; }
+    if (p) this.aggro(m, p);
+  }
+
+  updateDots() {
+    const now = this.time;
+    for (const m of [...this.ents.values()]) {
+      if (m.k !== 'm' || m.state === 'dead') continue;
+      if (m.burn) { if (m.burn.until <= now) m.burn = null; else this.rawDamage(this.players.get(m.burn.by), m, m.burn.dps * 0.5, 'fire'); }
+      if (m.state === 'dead') continue;
+      if (m.poison) { if (m.poison.until <= now) m.poison = null; else this.rawDamage(this.players.get(m.poison.by), m, m.poison.per * m.poison.stacks * 0.5, 'poison'); }
+    }
   }
 
   aggro(m, p) {
@@ -711,6 +759,7 @@ export class Zone {
       const ang = Math.atan2(p.x - m.x, p.y - m.y);
       if (dist > p.r + m.r + 0.3 && Math.abs(angDiff(ang, m.rot)) > half) continue;
       this.hurtPlayer(p, m.dmg, m);
+      if (p.stats.thorns && !p.dead) this.rawDamage(p, m, p.stats.thorns, 'thorns');
       if (!m.boss) break; // regular monsters hit one target
     }
   }
@@ -993,6 +1042,7 @@ export class Zone {
       if (now >= this.fieldAt) { this.updateField(); this.fieldAt = now + 0.35; }
       for (const e of this.ents.values()) if (e.k === 'm') this.updateMonster(e, dt);
       this.separate(dt);
+      if (this.tickN % 10 === 0) this.updateDots();
     }
     this.updateProjectiles(dt);
     this.updateAreas();
@@ -1019,7 +1069,8 @@ export class Zone {
       if (e.k !== 'm' || e.state === 'dead') continue;
       if (e.state === 'idle' && !players.some((p) => Math.hypot(p.x - e.x, p.y - e.y) < 50)) continue;
       const st = e.state === 'windup' || e.state === 'slam' ? 2 : e.stunUntil > this.time ? 3 : e.state === 'idle' ? 0 : 1;
-      ms.push([e.id, r1(e.x), r1(e.y), r2(e.rot), Math.max(0, Math.round(e.hp)), st]);
+      const fl = (e.burn ? 1 : 0) | (e.chillUntil > this.time ? 2 : 0) | (e.poison ? 4 : 0);
+      ms.push([e.id, r1(e.x), r1(e.y), r2(e.rot), Math.max(0, Math.round(e.hp)), st, fl]);
     }
     const ev = this.events; this.events = [];
     this.party.broadcast('snap', { t: r2(this.time), p: ps, m: ms, ev });

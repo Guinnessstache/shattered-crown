@@ -1,5 +1,5 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
-import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION } from '/shared/rules.js';
+import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS } from '/shared/rules.js';
 import { itemIcon } from './render/icons.js';
 import { KEY_GLYPH, PAD_GLYPH } from './input.js';
 
@@ -286,7 +286,10 @@ export class UI {
 
   slotHtml(it, extra = '', attrs = '') {
     const cls = it ? `slot ${it.rarity}${this.char && it.req > this.char.level ? ' cant' : ''}` : 'slot';
-    return `<button class="${cls} ${extra}" ${attrs} type="button">${it ? `<img src="${itemIcon(it)}" alt="" width="100%" draggable="false" style="max-width:56px">` : ''}${it && this.isUpgrade(it) ? '<span class="up">▲</span>' : ''}</button>`;
+    const au = it ? itemAura(it) : null;
+    const hex = au?.col != null ? `#${au.col.toString(16).padStart(6, '0')}` : null;
+    const style = hex ? ` style="box-shadow: inset 0 0 14px ${hex}55, inset 0 0 2px ${hex}"` : '';
+    return `<button class="${cls} ${extra}" ${attrs}${style} type="button">${it ? `<img src="${itemIcon(it)}" alt="" width="100%" draggable="false" style="max-width:56px">` : ''}${au?.el ? `<span class="elb">${ELEMENTS[au.el].icon}</span>` : ''}${it && this.isUpgrade(it) ? '<span class="up">▲</span>' : ''}</button>`;
   }
 
   // Small marker for items on the ground: ▲ upgrade, ✕ level too high.
@@ -380,7 +383,7 @@ export class UI {
     }
     return `<div class="idet"><div class="nm" style="color:${RARITY_COLOR[it.rarity]}">${esc(it.name)}</div>
       <div class="ty">${typeName}${it.rarity[0].toUpperCase()}${it.rarity.slice(1)} ${SLOT_NAMES[it.slot]} · item level ${it.ilvl}</div>
-      <ul>${lines.map((l, i) => `<li class="${i >= (it.dmg ? 2 : 0) + (it.armor ? 1 : 0) + (it.block ? 1 : 0) ? 'mod' : ''}">${esc(l)}</li>`).join('')}</ul>
+      <ul>${lines.map((l, i) => { const el = Object.values(ELEMENTS).find((e) => l.includes(`${e.name === 'Frost' ? 'Cold' : e.name} Damage`)); return `<li class="${i >= (it.dmg ? 2 : 0) + (it.armor ? 1 : 0) + (it.block ? 1 : 0) ? 'mod' : ''}"${el ? ` style="color:${el.css}"` : ''}>${el ? `${el.icon} ` : ''}${esc(l)}</li>`; }).join('')}</ul>
       ${it.crafted ? `<div style="font-size:12px;color:#c9a0ff;margin-top:4px">Crafted by ${esc(it.crafted)}</div>` : ''}
       <div class="req ${ch && it.req > ch.level ? 'bad' : ''}" style="font-size:12px;margin-top:4px">Requires level ${it.req} · ${price != null ? `Price <b style="color:#ffd76a">${fmt(price)}</b>` : `Sells for ${fmt(it.value)} gold`}</div>${cmp}</div>`;
   }
@@ -766,7 +769,7 @@ export function score(it) {
   let s = 0;
   if (it.dmg) s += (it.dmg[0] + it.dmg[1]) * 1.5 / it.speed * 0.55;
   s += (it.armor || 0) + (it.block || 0) * 1.5;
-  const w = { str: 2, dex: 1.5, vit: 2, spi: 1, life: 0.6, mana: 0.3, dmgPct: 1.5, armor: 1, lifeSteal: 4, atkSpd: 2, moveSpd: 1.5, crit: 2.5, regen: 3, gold: 0.3, block: 2 };
+  const w = { str: 2, dex: 1.5, vit: 2, spi: 1, life: 0.6, mana: 0.3, dmgPct: 1.5, armor: 1, lifeSteal: 4, atkSpd: 2, moveSpd: 1.5, crit: 2.5, regen: 3, gold: 0.3, block: 2, thorns: 1, fire: 3, frost: 3, shock: 3, poison: 3 };
   for (const [k, v] of Object.entries(it.mods || {})) s += v * (w[k] || 1);
   return s;
 }

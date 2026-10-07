@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { weaponMesh, shieldMesh } from './models.js';
 import { common, glow } from './materials.js';
+import { itemAura } from '/shared/rules.js';
 
 const SIZE = 96;
 let renderer = null; let scene; let camera;
@@ -49,29 +50,30 @@ function armorPiece(slot, tier) {
   return g;
 }
 
-function jewel(slot, rarity) {
+function jewel(slot, rarity, col = null) {
   const g = new THREE.Group();
   const gold = common('gold', { metal: 0.9, rough: 0.25 });
   if (slot === 'ring') {
     const r = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.08, 10, 24), gold); r.rotation.x = 1.1; g.add(r);
-    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.15), glow(GEM[rarity])); gem.position.set(0, 0.32, 0.12); g.add(gem);
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.15), glow(col ?? GEM[rarity])); gem.position.set(0, 0.32, 0.12); g.add(gem);
   } else {
     const chain = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.025, 6, 24, Math.PI * 1.2), gold); chain.rotation.z = Math.PI * 1.9; chain.position.y = 0.15; g.add(chain);
     const p = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.07, 6), gold); p.rotation.x = Math.PI / 2; p.position.y = -0.25; g.add(p);
-    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.13), glow(GEM[rarity])); gem.position.set(0, -0.25, 0.06); g.add(gem);
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.13), glow(col ?? GEM[rarity])); gem.position.set(0, -0.25, 0.06); g.add(gem);
   }
   return g;
 }
 
 export function itemIcon(it) {
   if (!it) return '';
-  const key = `${it.slot}:${it.kind}:${it.tier}:${it.rarity}`;
+  const au = itemAura(it);
+  const key = `${it.slot}:${it.kind}:${it.tier}:${it.rarity}:${au.col}:${au.el}`;
   if (cache.has(key)) return cache.get(key);
   if (!renderer) setup();
   let obj;
-  if (it.slot === 'weapon') { obj = weaponMesh(it.kind, it.tier, it.rarity); obj.rotation.z = -Math.PI / 4; obj.position.set(0.3, -0.3, 0); if (it.kind === 'staff') { obj.scale.setScalar(0.72); obj.position.set(0.35, -0.2, 0); } }
-  else if (it.slot === 'offhand') obj = shieldMesh(it.tier, it.rarity);
-  else if (it.slot === 'ring' || it.slot === 'amulet') obj = jewel(it.slot, it.rarity);
+  if (it.slot === 'weapon') { obj = weaponMesh(it.kind, it.tier, it.rarity, au); obj.rotation.z = -Math.PI / 4; obj.position.set(0.3, -0.3, 0); if (it.kind === 'staff') { obj.scale.setScalar(0.72); obj.position.set(0.35, -0.2, 0); } }
+  else if (it.slot === 'offhand') obj = shieldMesh(it.tier, it.rarity, au);
+  else if (it.slot === 'ring' || it.slot === 'amulet') obj = jewel(it.slot, it.rarity, au.col);
   else obj = armorPiece(it.slot, it.tier);
   const box = new THREE.Box3().setFromObject(obj);
   const c = box.getCenter(new THREE.Vector3()); const s = box.getSize(new THREE.Vector3()).length();

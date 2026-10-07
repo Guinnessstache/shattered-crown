@@ -287,6 +287,24 @@ export class World {
       }
     }
 
+    // Elemental shimmer on weapons (held and on the ground) and on afflicted monsters.
+    this.elemT = (this.elemT || 0) + dt;
+    if (this.elemT > 0.05) {
+      this.elemT = 0;
+      const tmpV = this._ev || (this._ev = new THREE.Vector3());
+      for (const v of this.ents.values()) {
+        const w = v.k === 'p' ? v.obj.userData.parts?.weapon : v.k === 'l' ? v.obj : null;
+        const el = w?.userData?.el;
+        if (el && w.userData.tip && !v.dead) { w.userData.tip.getWorldPosition(tmpV); this.fx.element(el, tmpV.x, tmpV.y, tmpV.z, v.k === 'p' ? 2 : 1, 0.12); }
+        if (v.k === 'm' && v.fl && !v.dead) {
+          const h = (v.obj.userData.height || 1.4) * 0.6;
+          if (v.fl & 1) this.fx.element('fire', v.x, h, v.y, 2, 0.35);
+          if (v.fl & 2) this.fx.element('frost', v.x, h, v.y, 1, 0.4);
+          if (v.fl & 4) this.fx.element('poison', v.x, h, v.y, 1, 0.3);
+        }
+      }
+    }
+
     // Entities
     const k = 1 - Math.exp(-dt * 14);
     const camQ = this.camera.quaternion;

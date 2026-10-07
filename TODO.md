@@ -9,3 +9,4 @@
 - [x] Mobile: make the left thumbstick stationary
 - [x] PC: turn the camera with the mouse (hold right mouse button and drag; quick right-click still uses Cleave)
 - [x] PvP duels with gold stakes — arena south of the town square; challenge a party member from the 👥 panel
+- [x] Elemental weapons (fire/frost/lightning/poison) with particle effects; every magic+ item glows the color of its main bonus; thorns armor

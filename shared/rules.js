@@ -190,7 +190,33 @@ const MODS = {
   regen: { roll: (r, l) => +(r.float(0.5, 1.5 + l * 0.12)).toFixed(1), pre: 'Mending', suf: 'of Renewal', fmt: (v) => `+${v} Life per second`, not: ['weapon'] },
   gold: { roll: (r) => r.int(10, 40), pre: 'Gilded', suf: 'of Greed', fmt: (v) => `+${v}% Gold Found`, only: ['ring', 'amulet', 'head', 'hands'] },
   block: { roll: (r) => r.int(3, 8), pre: 'Guarding', suf: 'of the Wall', fmt: (v) => `+${v}% Block Chance`, only: ['offhand'] },
+  thorns: { roll: (r, l) => r.int(2, 5 + l), pre: 'Spiked', suf: 'of Thorns', fmt: (v) => `Reflects ${v} damage to melee attackers`, only: ['chest', 'offhand', 'head'] },
+  // Elements: only on weapons, and added on top of the normal bonuses (see makeItem).
+  fire: { elem: true, roll: (r, l) => r.int(2, 4 + Math.floor(l * 0.9)), pre: 'Flaming', suf: 'of Embers', fmt: (v) => `+${v} Fire Damage · sets enemies ablaze (${v} more over 2s)` },
+  frost: { elem: true, roll: (r, l) => r.int(2, 4 + Math.floor(l * 0.8)), pre: 'Frozen', suf: 'of Winter', fmt: (v) => `+${v} Cold Damage · chills enemies (45% slower)` },
+  shock: { elem: true, roll: (r, l) => r.int(2, 4 + Math.floor(l * 0.9)), pre: 'Shocking', suf: 'of Storms', fmt: (v) => `+${v} Lightning Damage · 20% chance to arc to another enemy for ${v * 2}` },
+  poison: { elem: true, roll: (r, l) => r.int(2, 4 + Math.floor(l * 0.8)), pre: 'Venomous', suf: 'of the Viper', fmt: (v) => `+${v} Poison Damage · poisons for ${Math.round(v * 1.2)} over 3s, stacks 5 times` },
 };
+export const ELEMENTS = {
+  fire: { name: 'Fire', color: 0xff6a1a, css: '#ff7a2a', icon: '🔥' },
+  frost: { name: 'Frost', color: 0x8ad8ff, css: '#9ae0ff', icon: '❄' },
+  shock: { name: 'Lightning', color: 0xb48aff, css: '#c09aff', icon: '⚡' },
+  poison: { name: 'Poison', color: 0x6aff3a, css: '#7aff5a', icon: '☠' },
+};
+// Each bonus has a color, so an item glows the color of its strongest property.
+const MOD_COLOR = {
+  str: 0xe0402a, dex: 0x3ad070, vit: 0xe8a030, spi: 0x4a80ff, life: 0xff3a5a, mana: 0x3aa0ff, dmgPct: 0xff6a20,
+  armor: 0xc8d0dc, lifeSteal: 0xb01030, atkSpd: 0xffe050, moveSpd: 0x80f0ff, crit: 0xff5ad0, regen: 0x5aff8a,
+  gold: 0xffd040, block: 0xd8d8e8, thorns: 0x8ab040,
+};
+/** The look an item's bonuses give it: { col, el } (both may be null). */
+export function itemAura(it) {
+  if (!it || !it.mods) return { col: null, el: null };
+  const el = Object.keys(ELEMENTS).find((k) => it.mods[k]) || null;
+  if (el) return { col: ELEMENTS[el].color, el };
+  const first = Object.keys(it.mods).find((k) => MOD_COLOR[k] != null);
+  return { col: first ? MOD_COLOR[first] : null, el: null };
+}
 const RARE_A = ['Grim', 'Storm', 'Blood', 'Ash', 'Iron', 'Raven', 'Dread', 'Ember', 'Bone', 'Gloom', 'Wolf', 'Doom', 'Night', 'Rune'];
 const RARE_B = { weapon: ['Fang', 'Bite', 'Edge', 'Song', 'Cleaver', 'Reaper'], offhand: ['Ward', 'Wall', 'Guard', 'Bastion'], head: ['Visage', 'Crown', 'Cowl', 'Brow'], chest: ['Shell', 'Hide', 'Carapace', 'Mantle'], hands: ['Grasp', 'Hold', 'Claws', 'Fists'], feet: ['Stride', 'March', 'Track', 'Tread'], ring: ['Loop', 'Coil', 'Band', 'Spiral'], amulet: ['Heart', 'Eye', 'Charm', 'Star'] };
 
@@ -226,21 +252,29 @@ export function makeItem(rng, baseKey, ilvl, rarity = 'common') {
   if (b.armor) it.armor = Math.max(1, round((3 + ilvl * 1.3) * b.armor * rng.float(0.85, 1.15)));
   if (b.block) it.block = round(b.block[0] + (b.block[1] - b.block[0]) * (tier / 5));
   const nMods = rarity === 'common' ? 0 : rarity === 'magic' ? rng.int(1, 2) : rarity === 'rare' ? rng.int(3, 4) : 5;
-  const pool = Object.keys(MODS).filter((k) => (!MODS[k].only || MODS[k].only.includes(b.slot)) && (!MODS[k].not || !MODS[k].not.includes(b.slot)));
+  const pool = Object.keys(MODS).filter((k) => !MODS[k].elem && (!MODS[k].only || MODS[k].only.includes(b.slot)) && (!MODS[k].not || !MODS[k].not.includes(b.slot)));
   rng.shuffle(pool);
   for (const k of pool.slice(0, nMods)) {
     let v = MODS[k].roll(rng, ilvl);
     if (rarity === 'legendary') v = typeof v === 'number' && !Number.isInteger(v) ? +(v * 1.5).toFixed(1) : round(v * 1.5);
     it.mods[k] = v;
   }
+  // Weapons may carry an element on top of their other bonuses.
+  let element = null;
+  if (b.slot === 'weapon' && rng.chance({ common: 0, magic: 0.4, rare: 0.75, legendary: 1 }[rarity])) {
+    element = rng.pick(Object.keys(ELEMENTS));
+    let v = MODS[element].roll(rng, ilvl);
+    if (rarity === 'legendary') v = round(v * 1.5);
+    it.mods[element] = v;
+  }
   if (rarity === 'legendary' && it.dmg) it.dmg = it.dmg.map((d) => round(d * 1.25));
   if (rarity === 'legendary' && it.armor) it.armor = round(it.armor * 1.3);
   // Name
   const base = b.names[tier];
-  const keys = Object.keys(it.mods);
+  const keys = Object.keys(it.mods).filter((k) => k !== element);
   if (rarity === 'magic') {
-    const pre = keys[0] ? MODS[keys[0]].pre : '';
-    const suf = keys[1] ? MODS[keys[1]].suf : '';
+    const pre = element ? MODS[element].pre : keys[0] ? MODS[keys[0]].pre : '';
+    const suf = element ? (keys[0] ? MODS[keys[0]].suf : '') : keys[1] ? MODS[keys[1]].suf : '';
     it.name = [pre, base, suf].filter(Boolean).join(' ');
   } else if (rarity === 'rare' || rarity === 'legendary') {
     it.name = `${rng.pick(RARE_A)} ${rng.pick(RARE_B[b.slot])}`;
@@ -294,7 +328,7 @@ export function validName(n) {
 
 export function derive(ch, buffs = null) {
   const s = { ...ch.stats };
-  const m = { life: 0, mana: 0, dmgPct: 0, armor: 0, lifeSteal: 0, atkSpd: 0, moveSpd: 0, crit: 0, regen: 0, gold: 0, block: 0 };
+  const m = { life: 0, mana: 0, dmgPct: 0, armor: 0, lifeSteal: 0, atkSpd: 0, moveSpd: 0, crit: 0, regen: 0, gold: 0, block: 0, thorns: 0, fire: 0, frost: 0, shock: 0, poison: 0 };
   let armor = 0; let block = 0;
   let weapon = null;
   for (const slot of SLOTS) {
@@ -330,6 +364,8 @@ export function derive(ch, buffs = null) {
   d.goldFind = m.gold;
   d.stunChance = weapon ? BASES[weapon.base]?.stunChance || 0 : 0;
   d.weaponKind = weapon?.kind || 'none';
+  d.thorns = m.thorns;
+  d.elem = { fire: m.fire, frost: m.frost, shock: m.shock, poison: m.poison };
   return d;
 }
 

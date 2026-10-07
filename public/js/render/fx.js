@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { softTexture, glow, flat, common } from './materials.js';
 import { weaponMesh, shieldMesh } from './models.js';
-import { MATERIALS } from '/shared/rules.js';
+import { MATERIALS, itemAura } from '/shared/rules.js';
 const MAT_COLORS = Object.fromEntries(Object.entries(MATERIALS).map(([k, v]) => [k, v.color]));
 
 const tmp = new THREE.Vector3();
@@ -123,6 +123,30 @@ export class FX {
     this.emit(x, 0.3, z, 60, { color, speed: 2, up: 6, size: 0.3, life: 1.2, gravity: -1 });
   }
 
+  // A jagged lightning arc between two points.
+  zap(x1, z1, x2, z2, color = 0xc8a8ff) {
+    const pts = []; const n = 8;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n; const j = i === 0 || i === n ? 0 : 0.35;
+      pts.push(new THREE.Vector3(x1 + (x2 - x1) * t + (Math.random() - 0.5) * j, 1.1 + (Math.random() - 0.5) * j, z1 + (z2 - z1) * t + (Math.random() - 0.5) * j));
+    }
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    this.scene.add(line);
+    this.items.push({ obj: line, t: 0, dur: 0.22, kind: 'zap' });
+    this.emit(x2, 1.1, z2, 10, { color, speed: 2.5, size: 0.15, life: 0.3, gravity: 0 });
+  }
+
+  // Elemental particles from a weapon tip, a loot item or a burning/frozen/poisoned monster.
+  element(el, x, y, z, n = 1, spread = 0.08) {
+    for (let i = 0; i < n; i++) {
+      const ox = (Math.random() - 0.5) * spread * 2; const oz = (Math.random() - 0.5) * spread * 2; const oy = (Math.random() - 0.5) * spread;
+      if (el === 'fire') this.emit(x + ox, y + oy, z + oz, 1, { color: Math.random() < 0.5 ? 0xff7a20 : 0xffc040, speed: 0.25, up: 1.2, size: 0.16, life: 0.45, gravity: -1.5 });
+      else if (el === 'frost') this.emit(x + ox, y + oy, z + oz, 1, { color: Math.random() < 0.6 ? 0xdff6ff : 0x8ad8ff, speed: 0.35, up: 0.3, size: 0.11, life: 0.7, gravity: 0.4 });
+      else if (el === 'shock') this.emit(x + ox, y + oy, z + oz, 1, { color: 0xc8a8ff, speed: 1.6, up: 0.4, size: 0.09, life: 0.12, gravity: 0 });
+      else if (el === 'poison') this.emit(x + ox, y + oy, z + oz, 1, { color: Math.random() < 0.5 ? 0x6aff3a : 0x3ac020, speed: 0.15, up: -0.2, size: 0.12, life: 0.6, gravity: 2.5 });
+    }
+  }
+
   // A glowing disc on the ground that lasts `dur` seconds (Acid Pool, Entangle, Rejuvenation).
   pool(x, z, r, color, dur, { opacity = 0.45, pulse = true } = {}) {
     const g = new THREE.Group();
@@ -190,6 +214,7 @@ export class FX {
       if (it.kind === 'trail') it.obj.material.uniforms.fade.value = 1 - k;
       if (it.kind === 'tell') { it.fill.scale.setScalar(Math.min(1, k)); it.fill.material.opacity = 0.15 + k * 0.3; }
       if (it.kind === 'wave') { it.obj.scale.setScalar(1 + k * it.r); it.obj.material.opacity = 0.8 * (1 - k); }
+      if (it.kind === 'zap') it.obj.material.opacity = 1 - k;
       if (it.kind === 'pool') {
         const fade = Math.min(1, it.t / 0.2) * Math.min(1, (it.dur - it.t) / 0.4);
         const pul = it.pulse ? 0.85 + Math.sin(it.t * 6) * 0.15 : 1;
@@ -285,8 +310,9 @@ export function lootMesh(e) {
   } else if (e.item) {
     const it = e.item;
     let m;
-    if (it.slot === 'weapon') { m = weaponMesh(it.kind, it.tier, it.rarity); m.rotation.set(Math.PI / 2, 0, 0.6); m.position.y = 0.06; }
-    else if (it.slot === 'offhand') { m = shieldMesh(it.tier, it.rarity); m.rotation.x = -Math.PI / 2; m.position.y = 0.05; m.scale.setScalar(0.8); }
+    const au = itemAura(it);
+    if (it.slot === 'weapon') { m = weaponMesh(it.kind, it.tier, it.rarity, au); m.rotation.set(Math.PI / 2, 0, 0.6); m.position.y = 0.06; if (au.el) { g.userData.el = au.el; g.userData.tip = m.userData.tip; } }
+    else if (it.slot === 'offhand') { m = shieldMesh(it.tier, it.rarity, au); m.rotation.x = -Math.PI / 2; m.position.y = 0.05; m.scale.setScalar(0.8); }
     else if (it.slot === 'ring' || it.slot === 'amulet') {
       m = new THREE.Group();
       const r = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.025, 6, 14), common('gold', { metal: 0.9, rough: 0.25 }));

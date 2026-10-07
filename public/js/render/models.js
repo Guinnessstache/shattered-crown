@@ -19,6 +19,13 @@ const joint = (name, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.na
 // ---------------------------------------------------------------- palettes
 const TIER_METAL = [0x7a5a3a, 0x8a8c90, 0xb8bcc4, 0x6a86b0, 0x3a3436, 0xd8a040];
 const TIER_TRIM = [0x4a3420, 0x5a5c60, 0xd0b060, 0xd8d8e0, 0xa02020, 0xff7020];
+let _soft = null;
+function softTex() {
+  if (_soft) return _soft;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64); _soft = new THREE.CanvasTexture(c); return _soft;
+}
 const RARITY_GLOW = { magic: 0x3a7aff, rare: 0xffc020, legendary: 0xff6010 };
 
 function armorMat(tier = 1) {
@@ -28,13 +35,14 @@ function armorMat(tier = 1) {
 function trimMat(tier = 1) { return tier >= 2 ? common('gold', { metal: 0.85, rough: 0.3, color: TIER_TRIM[tier] }) : common('iron', { metal: 0.6, rough: 0.5, color: TIER_TRIM[tier] }); }
 
 // ---------------------------------------------------------------- weapons & shields
-export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common') {
+export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common', aura = null) {
   const g = new THREE.Group();
   const blade = common('steel', { metal: 0.85, rough: 0.25, color: tier >= 4 ? 0x5a5a66 : 0xd8dce4 });
   const grip = common('leather', { color: 0x6a4428 });
   const guard = trimMat(Math.max(1, tier));
-  const glowC = RARITY_GLOW[rarity];
+  const glowC = aura?.col ?? RARITY_GLOW[rarity];
   const len = 0.9 + tier * 0.06;
+  let tipY = 0;
   if (kind === 'sword' || kind === 'none') {
     g.add(M(G.cyl(0.03, 0.035, 0.22, 6), grip, 0, 0, 0));
     g.add(M(G.box(0.32 + tier * 0.03, 0.05, 0.07), guard, 0, 0.12, 0));
@@ -42,6 +50,7 @@ export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common') {
     const tip = M(G.cone(0.06, 0.16, 4), blade, 0, 0.14 + len + 0.08, 0); tip.rotation.y = Math.PI / 4; tip.scale.z = 0.3; g.add(tip);
     g.add(M(G.sph(0.045, 6, 4), guard, 0, -0.13, 0));
     if (glowC) { const e = M(G.box(0.03, len * 0.9, 0.03), glow(glowC, 0.8), 0, 0.14 + len / 2, 0); g.add(e); }
+    tipY = 0.14 + len * 0.6;
   } else if (kind === 'axe') {
     g.add(M(G.cyl(0.035, 0.04, 1.0, 6), common('wood'), 0, 0.35, 0));
     const head = new THREE.Shape(); head.moveTo(0, -0.12); head.quadraticCurveTo(0.34, -0.26, 0.4, 0); head.quadraticCurveTo(0.34, 0.26, 0, 0.14); head.lineTo(0, -0.12);
@@ -49,11 +58,13 @@ export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common') {
     const h = M(hg, blade, 0.03, 0.78, 0); g.add(h);
     if (tier >= 3) { const h2 = M(hg, blade, -0.03, 0.78, 0); h2.rotation.y = Math.PI; g.add(h2); }
     if (glowC) g.add(M(G.box(0.02, 0.4, 0.04), glow(glowC, 0.8), 0.42, 0.78, 0));
+    tipY = 0.78;
   } else if (kind === 'mace') {
     g.add(M(G.cyl(0.035, 0.04, 0.85, 6), common('darkwood'), 0, 0.3, 0));
     g.add(M(G.sph(0.14 + tier * 0.01, 8, 6), blade, 0, 0.8, 0));
     for (let i = 0; i < 6; i++) { const s = M(G.cone(0.04, 0.14, 4), blade, 0, 0.8, 0); const a = i / 6 * Math.PI * 2; s.position.set(Math.cos(a) * 0.15, 0.8, Math.sin(a) * 0.15); s.rotation.set(0, -a, Math.PI / 2); g.add(s); }
     if (glowC) g.add(M(G.sph(0.08, 6, 4), glow(glowC, 0.9), 0, 0.8, 0));
+    tipY = 0.8;
   } else if (kind === 'club') {
     const c = M(G.cyl(0.14, 0.05, 1.1, 7), common('wood'), 0, 0.45, 0); g.add(c);
     for (let i = 0; i < 5; i++) g.add(M(G.cone(0.035, 0.12, 4), common('iron'), Math.cos(i * 1.3) * 0.12, 0.7 + i * 0.05, Math.sin(i * 1.3) * 0.12));
@@ -73,14 +84,22 @@ export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common') {
     const cry = M(new THREE.OctahedronGeometry(0.08), glow(cryC, 0.9), 0, 1.3, 0); cry.scale.y = 1.6; g.add(cry);
     g.add(M(G.cyl(0.045, 0.045, 0.06, 7), guard, 0, 1.18, 0));
     g.add(M(G.cyl(0.04, 0.04, 0.05, 7), guard, 0, -0.45, 0));
+    tipY = 1.3;
   } else if (kind === 'hammer') {
     g.add(M(G.cyl(0.03, 0.035, 0.6, 6), common('wood'), 0, 0.2, 0));
     g.add(M(G.box(0.24, 0.12, 0.12), common('iron', { metal: 0.7 }), 0, 0.5, 0));
   }
+  // Elemental weapons: a glowing halo near the business end; the renderer adds particles there.
+  if (aura?.el && tipY) {
+    const tip = new THREE.Object3D(); tip.position.y = tipY; g.add(tip);
+    const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), color: aura.col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55, toneMapped: false }));
+    h.scale.setScalar(kind === 'staff' ? 0.55 : 0.45); tip.add(h);
+    g.userData.el = aura.el; g.userData.tip = tip; g.userData.col = aura.col;
+  }
   return g;
 }
 
-export function shieldMesh(tier = 0, rarity = 'common') {
+export function shieldMesh(tier = 0, rarity = 'common', aura = null) {
   const g = new THREE.Group();
   const face = tier === 0 ? common('wood') : armorMat(tier);
   const trim = trimMat(Math.max(1, tier));
@@ -95,7 +114,8 @@ export function shieldMesh(tier = 0, rarity = 'common') {
     g.add(M(geo, face));
     const emb = new THREE.Shape(); emb.moveTo(-0.05, 0.25); emb.lineTo(0.05, 0.25); emb.lineTo(0.05, 0.05); emb.lineTo(0.2, 0.05); emb.lineTo(0.2, -0.05); emb.lineTo(0.05, -0.05); emb.lineTo(0.05, -0.35); emb.lineTo(-0.05, -0.35); emb.lineTo(-0.05, -0.05); emb.lineTo(-0.2, -0.05); emb.lineTo(-0.2, 0.05); emb.lineTo(-0.05, 0.05);
     const eg = new THREE.ExtrudeGeometry(emb, { depth: 0.02, bevelEnabled: false });
-    const em = M(eg, RARITY_GLOW[rarity] ? glow(RARITY_GLOW[rarity], 0.9) : flat(0x8a1a20, { rough: 0.6 }), 0, 0.02, 0.05);
+    const emC = aura?.col ?? RARITY_GLOW[rarity];
+    const em = M(eg, emC ? glow(emC, 0.9) : flat(0x8a1a20, { rough: 0.6 }), 0, 0.02, 0.05);
     em.scale.setScalar(0.9 + tier * 0.05);
     g.add(em);
   }
@@ -193,11 +213,11 @@ export function buildKnight(look = {}) {
         if (headT >= 4) p.head.add(M(G.box(0.04, 0.12, 0.3), trimMat(headT), 0, 0.33, -0.02));
       }
       // weapon & shield
-      const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity);
+      const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
       wpn.rotation.x = Math.PI / 2; wpn.position.set(0, -0.05, 0.02);
       p.handR.add(wpn); p.weapon = wpn;
       if (look.offhand) {
-        const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity);
+        const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
         shd.position.set(0.08, -0.04, 0.02); shd.rotation.y = Math.PI / 2 + 0.15;
         p.foreL.add(shd); p.shield = shd;
       }
@@ -487,14 +507,15 @@ function fromGlb(key, look = null) {
     if (parts.hair) parts.hair.visible = headT < 0;
     if (parts.cape) {
       parts.cape.visible = chestT >= 2;
-      parts.cape.material = flat(chestT >= 4 ? 0x1a1a22 : 0x7a1018, { rough: 0.95, side: THREE.DoubleSide });
+      const capeCol = look.chest?.col != null ? new THREE.Color(look.chest.col).multiplyScalar(0.55).getHex() : (chestT >= 4 ? 0x1a1a22 : 0x7a1018);
+      parts.cape.material = flat(capeCol, { rough: 0.95, side: THREE.DoubleSide });
       parts.cape.userData.baseX = parts.cape.rotation.x;
     }
-    const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity);
+    const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
     wpn.rotation.x = Math.PI / 2; wpn.position.set(0, -0.05, 0.02);
     parts.handR.add(wpn); parts.weapon = wpn;
     if (look.offhand) {
-      const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity);
+      const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
       shd.position.set(0.09, -0.04, 0.02); shd.rotation.y = Math.PI / 2 + 0.15;
       parts.foreL.add(shd); parts.shield = shd;
     }
@@ -604,6 +625,12 @@ export class Animator {
       this.flash -= dt;
       const v = Math.max(0, this.flash) * 4;
       for (const m of this.mats) m.emissive.setRGB(v, v * 0.35, v * 0.3);
+      if (this.flash <= 0) this.tintOn = null;
+    } else if (this.tint !== this.tintOn) {
+      // Chilled monsters glow icy blue.
+      this.tintOn = this.tint;
+      const c = new THREE.Color(this.tint || 0x000000).multiplyScalar(this.tint ? 0.45 : 0);
+      for (const m of this.mats) m.emissive.copy(c);
     }
     this.flinch = Math.max(0, this.flinch - dt);
     if (this.rig === 'humanoid') this.humanoid(dt);

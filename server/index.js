@@ -6,6 +6,8 @@ import { existsSync } from 'node:fs';
 import { Server } from 'socket.io';
 import { openDb, MAX_CHARS } from './db.js';
 import { auctionAction, setOnlineLookup } from './auction.js';
+import { makeItem } from '../shared/rules.js';
+import { RNG } from '../shared/rng.js';
 import { duelAction } from './duel.js';
 import { loadSecret, hashPassword, checkPassword, signToken, verifyToken, validUsername, validPassword, verifyGoogleToken, rateLimited } from './auth.js';
 import { Party, Member, parties } from './party.js';
@@ -204,6 +206,12 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
         if (d.cmd === 'xp') party.grantXp(member.pid, Number(d.n) || 100);
         if (d.cmd === 'gold') { member.char.gold += Number(d.n) || 1000; party.sendChar(member.pid); }
         if (d.cmd === 'mats') { const m = member.char.mats ||= {}; for (const [k, v] of Object.entries(d.mats || {})) m[k] = (m[k] || 0) + (Number(v) || 0); member.socket.emit('mats', { mats: m, got: { mat: Object.keys(d.mats || {})[0] || 'scrap', n: 0 } }); }
+        if (d.cmd === 'item') {
+          const it = makeItem(new RNG(Date.now() & 0xffffff), d.base || 'sword', Math.max(1, Number(d.ilvl) || member.char.level), d.rarity || 'rare');
+          if (d.el) { for (const k of ['fire', 'frost', 'shock', 'poison']) delete it.mods[k]; it.mods[d.el] = Number(d.v) || 8; }
+          const i = member.char.inv.findIndex((x) => !x); if (i >= 0) member.char.inv[i] = it;
+          party.sendChar(member.pid);
+        }
         if (d.cmd === 'killboss' && p) { const z = party.zone; for (const e of z.ents.values()) if (e.k === 'm' && e.boss && e.state !== 'dead') { p.x = e.x + 1.5; p.y = e.y; member.socket.emit('correct', { x: p.x, y: p.y }); z.killMonster(e, p); } }
         return null;
       }));

@@ -2,6 +2,7 @@
 // for local play. Both expose the same async API.
 import { promises as fs, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { itemAura } from '../shared/rules.js';
 
 export const MAX_CHARS = 6;
 
@@ -203,11 +204,12 @@ class FileStore {
 // What the character looks like, for the select screen.
 export function lookOf(ch) {
   const e = ch.equip || {};
+  const au = (it) => { const a = itemAura(it); return { col: a.col, el: a.el }; };
   return {
-    weapon: e.weapon ? { kind: e.weapon.kind, tier: e.weapon.tier, rarity: e.weapon.rarity } : null,
-    offhand: e.offhand ? { kind: e.offhand.kind, tier: e.offhand.tier, rarity: e.offhand.rarity } : null,
-    head: e.head ? { tier: e.head.tier, rarity: e.head.rarity } : null,
-    chest: e.chest ? { tier: e.chest.tier, rarity: e.chest.rarity } : null,
+    weapon: e.weapon ? { kind: e.weapon.kind, tier: e.weapon.tier, rarity: e.weapon.rarity, ...au(e.weapon) } : null,
+    offhand: e.offhand ? { kind: e.offhand.kind, tier: e.offhand.tier, rarity: e.offhand.rarity, ...au(e.offhand) } : null,
+    head: e.head ? { tier: e.head.tier, rarity: e.head.rarity, ...au(e.head) } : null,
+    chest: e.chest ? { tier: e.chest.tier, rarity: e.chest.rarity, ...au(e.chest) } : null,
     hands: e.hands ? { tier: e.hands.tier } : null,
     feet: e.feet ? { tier: e.feet.tier } : null,
   };
