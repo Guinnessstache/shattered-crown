@@ -2,6 +2,7 @@
 import { io } from '/socket.io/socket.io.esm.min.js';
 import { World } from './render/world.js';
 import { loadModelManifest } from './render/models.js';
+import { loadBakedTextures } from './render/textures.js';
 import { Input } from './input.js';
 import { UI, esc, $, $$ } from './ui.js';
 import { Sfx } from './audio.js';
@@ -87,7 +88,7 @@ const show = (id) => { for (const s of ['auth', 'select', 'hud']) $(`#${s}`).cla
 
 async function boot() {
   try { config = await (await fetch('/api/config')).json(); } catch { config = {}; }
-  await loadModelManifest();
+  await Promise.all([loadModelManifest(), loadBakedTextures()]);
   // Town backdrop behind the menus
   const town = generateTown();
   world.loadZone(town);

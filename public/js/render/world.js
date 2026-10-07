@@ -7,6 +7,9 @@ import { setMaterialQuality } from './materials.js';
 import { buildHero, buildMonster, buildMerchant, buildWolf, blobShadow, Animator } from './models.js';
 import * as P from './props.js';
 import { FX, projectileMesh, lootMesh } from './fx.js';
+import { Post } from './post.js';
+import { buildSky, buildMountains } from './town.js';
+import { softTexture } from './materials.js';
 import { MONSTERS, MATERIALS } from '/shared/rules.js';
 
 const LIGHTS = { high: 8, medium: 5, low: 3 };
@@ -21,13 +24,14 @@ export class World {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.info.autoReset = false;
     container.appendChild(this.renderer.domElement);
     this.scene = new THREE.Scene();
     // Soft studio reflections so metal armor and blades read as metal.
     const pm = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
     pm.dispose();
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 200);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 450);
     this.yaw = 0; this.pitch = 0.92; this.dist = 15; this.targetDist = 15;
     this.focus = new THREE.Vector3();
     this.shake = 0;
@@ -44,6 +48,9 @@ export class World {
     this.scene.add(this.heroLight);
     this.raycaster = new THREE.Raycaster();
     this.ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.post = new Post(this.renderer, this.scene, this.camera);
+    this.motes = new Motes(); this.scene.add(this.motes.points);
+    this.sky = null;
     addEventListener('resize', () => this.resize());
     this.resize();
   }
@@ -55,6 +62,8 @@ export class World {
     this.renderer.setPixelRatio(pr);
     this.renderer.shadowMap.enabled = q !== 'low';
     this.resize();
+    this.post.setQuality(q, this.w, this.h);
+    if (this.zoneGrade) this.post.setGrade(this.zoneGrade);
     for (const l of this.pool) this.scene.remove(l);
     this.pool = [];
     for (let i = 0; i < LIGHTS[q]; i++) {
@@ -74,6 +83,7 @@ export class World {
     this.camera.updateProjectionMatrix();
     this.fx.setScale(h * this.renderer.getPixelRatio());
     this.w = w; this.h = h;
+    this.post?.setSize(w, h);
   }
 
   // ------------------------------------------------------------ zones
@@ -85,23 +95,33 @@ export class World {
     const town = map.kind === 'town';
     this.town = town;
     const t = THEME_TEX[map.theme] || THEME_TEX.crypt;
+    if (this.sky) { this.scene.remove(this.sky); this.sky = null; }
     if (town) {
-      this.scene.background = new THREE.Color(0x8fb0d0);
-      this.scene.fog = new THREE.Fog(0x9ab4c8, 34, 90);
-      this.hemi.color.set(0xd8e8ff); this.hemi.groundColor.set(0x4a5a30); this.hemi.intensity = 1.1;
-      this.sun.visible = true; this.sun.castShadow = this.quality !== 'low'; this.sun.intensity = 2.2;
+      // Late-afternoon light: warm low sun, long shadows, sky dome with drifting clouds.
+      this.sky = new THREE.Group();
+      this.sky.add(buildSky()); this.sky.add(buildMountains(0, 0));
+      this.scene.add(this.sky);
+      this.scene.background = new THREE.Color(0xc8ccc8);
+      this.scene.fog = new THREE.Fog(0xc9cdc8, 40, 140);
+      this.hemi.color.set(0xcfe0ff); this.hemi.groundColor.set(0x5a5430); this.hemi.intensity = 1.0;
+      this.sun.visible = true; this.sun.castShadow = this.quality !== 'low'; this.sun.intensity = 2.9; this.sun.color.set(0xffdcb0);
+      this.sunOffset = [-24, 22, 16];
       this.heroLight.intensity = 0;
-      this.renderer.toneMappingExposure = 0.9;
-      this.scene.environmentIntensity = 0.3;
+      this.renderer.toneMappingExposure = 0.95;
+      this.scene.environmentIntensity = 0.35;
     } else {
       this.scene.background = new THREE.Color(t.fog);
-      this.scene.fog = new THREE.Fog(t.fog, 16, 40);
-      this.hemi.color.set(t.ambient); this.hemi.groundColor.set(0x080604); this.hemi.intensity = 0.55;
-      this.sun.visible = true; this.sun.castShadow = false; this.sun.intensity = 0.25; this.sun.color.set(t.key);
-      this.heroLight.intensity = 26; this.heroLight.color.set(0xffd2a0);
-      this.renderer.toneMappingExposure = 1.25;
-      this.scene.environmentIntensity = 0.12;
+      this.scene.fog = new THREE.Fog(t.fog, 15, 42);
+      this.hemi.color.set(t.ambient); this.hemi.groundColor.set(0x080604); this.hemi.intensity = 0.6;
+      this.sun.visible = true; this.sun.castShadow = false; this.sun.intensity = 0.3; this.sun.color.set(t.key);
+      this.sunOffset = [18, 30, 10];
+      this.heroLight.intensity = 24; this.heroLight.color.set(0xffd2a0);
+      this.renderer.toneMappingExposure = 1.3;
+      this.scene.environmentIntensity = 0.14;
     }
+    this.zoneGrade = (THEME_TEX[map.theme] || THEME_TEX.crypt).grade;
+    if (this.zoneGrade) this.post.setGrade(this.zoneGrade);
+    this.motes.setTheme(map.theme, this.quality);
     for (const l of this.pool) { l.userData.anchor = null; l.intensity = 0; }
     this.lightTimer = 0;
   }
@@ -232,6 +252,7 @@ export class World {
 
   // ------------------------------------------------------------ frame
   render(dt, focusX, focusY) {
+    this.renderer.info.reset();
     // Camera follows the hero smoothly
     this.focus.x += (focusX - this.focus.x) * Math.min(1, dt * 10);
     this.focus.z += (focusY - this.focus.z) * Math.min(1, dt * 10);
@@ -245,7 +266,9 @@ export class World {
 
     // Hero light + sun follow the action
     this.heroLight.position.set(this.focus.x, 3.2, this.focus.z);
-    this.sun.position.set(this.focus.x + 18, 30, this.focus.z + 10);
+    const so = this.sunOffset || [18, 30, 10];
+    this.sun.position.set(this.focus.x + so[0], so[1], this.focus.z + so[2]);
+    if (this.sky) this.sky.position.set(this.focus.x, 0, this.focus.z);
     this.sun.target.position.set(this.focus.x, 0, this.focus.z);
 
     // Assign the light pool to the nearest torches
@@ -254,7 +277,7 @@ export class World {
       this.lightTimer = 0.25;
       const want = this.lightAnchors
         .filter((a) => !this.town || a.night)
-        .map((a) => ({ a, d: Math.hypot(a.x - this.focus.x, a.y - this.focus.z) }))
+        .map((a) => ({ a, d: Math.hypot(a.x - this.focus.x, a.y - this.focus.z) * (a.weak ? 1.7 : 1) }))
         .filter((o) => o.d < 26)
         .sort((p, q) => p.d - q.d).slice(0, this.pool.length);
       const used = new Set();
@@ -270,12 +293,13 @@ export class World {
     const t = performance.now() / 1000;
     for (const l of this.pool) {
       const a = l.userData.anchor;
-      const target = a ? (a.weak ? 6 : this.town ? 0 : 22) : 0;
+      const target = a ? (a.weak ? 6 : this.town ? 9 : 22) : 0;
       l.userData.fade = Math.min(1, (l.userData.fade || 0) + dt * 3);
       const flick = a && !a.weak ? 0.85 + Math.sin(t * 13 + a.x) * 0.06 + Math.sin(t * 23 + a.y) * 0.05 + Math.random() * 0.04 : 1;
       l.intensity = a ? target * flick * l.userData.fade : Math.max(0, l.intensity - dt * 40);
     }
     for (const f of this.anim) {
+      if (f.userData.tick) { f.userData.tick(t, dt); continue; }
       if (f.userData.flame) {
         const k = f.userData.seed;
         f.userData.flame.scale.y = 0.75 * f.userData.base * (0.9 + Math.sin(t * 17 + k) * 0.08 + Math.random() * 0.06);
@@ -336,7 +360,8 @@ export class World {
       if (v.k === 'c' && v.opening) { v.opening = Math.min(1, v.opening + dt * 2.5); v.obj.userData.lid.rotation.x = -1.9 * v.opening; }
     }
     this.fx.update(dt, this.w, this.h);
-    this.renderer.render(this.scene, this.camera);
+    this.motes.update(dt, t, this.focus);
+    this.post.render(dt);
     this.placeLabels();
   }
 
@@ -352,5 +377,60 @@ export class World {
       const sx = (tmpV.x * 0.5 + 0.5) * this.w; const sy = (-tmpV.y * 0.5 + 0.5) * this.h;
       v.label.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) translate(-50%, -100%)`;
     }
+  }
+}
+
+// Ambient particles drifting around the hero: crypt dust, cavern spores, infernal embers,
+// pollen in the village. One draw call; positions wrap inside a box that follows the camera.
+const MOTE = {
+  crypt: { n: 260, col: 0xc8c8d8, size: 0.09, rise: 0.05, drift: 0.12, op: 0.5, add: true },
+  cavern: { n: 220, col: 0x60f0d0, size: 0.08, rise: 0.12, drift: 0.1, op: 0.7, add: true },
+  infernal: { n: 320, col: 0xff7a20, size: 0.1, rise: 1.1, drift: 0.35, op: 0.95, add: true },
+  town: { n: 160, col: 0xfff2c0, size: 0.07, rise: 0.04, drift: 0.25, op: 0.6, add: true },
+};
+class Motes {
+  constructor() {
+    const N = 340;
+    const g = new THREE.BufferGeometry();
+    const p = new Float32Array(N * 3); const r = new Float32Array(N);
+    for (let i = 0; i < N; i++) { p[i * 3] = Math.random(); p[i * 3 + 1] = Math.random(); p[i * 3 + 2] = Math.random(); r[i] = Math.random(); }
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    g.setAttribute('aRand', new THREE.BufferAttribute(r, 1));
+    this.mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uMap: { value: softTexture() }, uCol: { value: new THREE.Color() }, uT: { value: 0 }, uC: { value: new THREE.Vector3() }, uSize: { value: 0.1 }, uRise: { value: 0 }, uDrift: { value: 0 }, uOp: { value: 0.5 }, uScale: { value: 600 } },
+      vertexShader: `attribute float aRand; uniform float uT; uniform vec3 uC; uniform float uSize; uniform float uRise; uniform float uDrift; uniform float uScale; varying float vA;
+        void main(){
+          vec3 box = vec3(26.0, 6.0, 26.0);
+          vec3 p = position * box;
+          p.y += uT * uRise * (0.6 + aRand);
+          p.x += sin(uT * 0.7 + aRand * 20.0) * uDrift * 3.0 + uT * uDrift * 0.3;
+          p.z += cos(uT * 0.5 + aRand * 13.0) * uDrift * 3.0;
+          vec3 o = uC - box * 0.5; o.y = 0.0;
+          p = mod(p - o, box) + o;
+          vA = smoothstep(0.0, 0.8, p.y) * (1.0 - smoothstep(4.0, 6.0, p.y)) * (0.5 + 0.5 * sin(uT * (1.0 + aRand * 2.0) + aRand * 30.0));
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_PointSize = uSize * uScale / -mv.z * (0.6 + aRand * 0.8);
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `uniform sampler2D uMap; uniform vec3 uCol; uniform float uOp; varying float vA;
+        void main(){ float a = texture2D(uMap, gl_PointCoord).a; gl_FragColor = vec4(uCol * 1.6, a * vA * uOp); }`,
+    });
+    this.points = new THREE.Points(g, this.mat);
+    this.points.frustumCulled = false;
+    this.points.visible = false;
+  }
+  setTheme(theme, quality) {
+    const c = MOTE[theme] || MOTE.crypt;
+    const u = this.mat.uniforms;
+    u.uCol.value.set(c.col); u.uSize.value = c.size; u.uRise.value = c.rise; u.uDrift.value = c.drift; u.uOp.value = c.op;
+    const n = quality === 'low' ? Math.round(c.n * 0.35) : quality === 'medium' ? Math.round(c.n * 0.7) : c.n;
+    this.points.geometry.setDrawRange(0, n);
+    this.points.visible = true;
+  }
+  update(dt, t, focus) {
+    const u = this.mat.uniforms;
+    u.uT.value = t; u.uC.value.copy(focus);
+    u.uScale.value = innerHeight * 1.1;
   }
 }

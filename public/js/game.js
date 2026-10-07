@@ -55,7 +55,7 @@ export class Game {
     this.on('levelup', (d) => {
       const v = this.world.ents.get(`p${d.pid}`);
       if (v) this.world.fx.pillar(v.x, v.y);
-      if (d.pid === this.pid) { this.sfx.play('levelup'); this.ui.center(`Level ${d.level}!`); this.ui.msg('New attribute and skill points — press I (or View) to spend them', 'good'); }
+      if (d.pid === this.pid) { this.world.post.pulse(0xffd060, 0.45); this.sfx.play('levelup'); this.ui.center(`Level ${d.level}!`); this.ui.msg('New attribute and skill points — press I (or View) to spend them', 'good'); }
       else this.ui.msg(`${d.name} reached level ${d.level}`, 'good');
     });
     this.on('died', (d) => {
@@ -210,7 +210,7 @@ export class Game {
         if (v.k === 'p') {
           if (ev.b) { W.fx.number(v.x, h, v.y, 'Block', 'block'); this.sfx.play('block'); v.anim?.play('bash', 0.15); break; }
           if (ev.w) { W.fx.number(v.x, h, v.y, 'Absorbed', 'block'); this.sfx.play('block'); break; }
-          if (ev.id === this.myId) { this.hp = ev.hp; W.fx.number(v.x, h, v.y, ev.v, 'me'); this.sfx.play('hurt'); W.shakeCam(0.18); this.input.rumble(90, 0.5, 0.3); }
+          if (ev.id === this.myId) { this.hp = ev.hp; W.fx.number(v.x, h, v.y, ev.v, 'me'); this.sfx.play('hurt'); W.shakeCam(0.18); this.input.rumble(90, 0.5, 0.3); W.post.pulse(0x8a0a06, Math.min(0.55, 0.18 + ev.v / Math.max(1, this.hpMax || 100))); }
           else if (this.duel?.live && (ev.id === this.duel.a || ev.id === this.duel.b)) { W.fx.number(v.x, h, v.y, ev.v, ''); this.sfx.play('hit'); }
           if (v.anim) v.anim.flinch = 0.15;
           W.fx.emit(v.x, 1.1, v.y, 8, { color: 0xb01010, speed: 2, size: 0.18, life: 0.4 });

@@ -552,6 +552,23 @@ export function buildMonster(type, { elite = false } = {}) {
   return m;
 }
 
+// A hero model turned to stone and posed, for crypt niches and the town fountain.
+const statueMats = new Map();
+export function buildStatue(key, stone, pose = 'raise') {
+  const look = { weapon: { kind: key === 'hero_alchemist' || key === 'hero_druid' ? 'staff' : key === 'hero_berserker' ? 'axe' : 'sword', tier: 3 }, offhand: key === 'hero_knight' ? { tier: 3 } : null, chest: { tier: 3 }, head: { tier: 3 } };
+  const s = fromGlb(key, look);
+  if (!s) return null;
+  const p = s.userData.parts;
+  const rot = (j, x = 0, y = 0, z = 0) => { if (p[j]) { p[j].rotation.x += x; p[j].rotation.y += y; p[j].rotation.z += z; } };
+  if (pose === 'raise') { rot('armR', -2.75, 0, -0.15); rot('foreR', -0.25); rot('armL', 0.1, 0, 0.3); rot('foreL', -1.2); rot('head', -0.15); rot('legL', -0.2); rot('shinL', 0.25); }
+  else { rot('armR', -0.9, 0, 0.35); rot('foreR', -0.9); rot('armL', -0.9, 0, -0.35); rot('foreL', -0.9); }
+  if (p.cape) p.cape.visible = true;
+  if (!statueMats.has(stone)) { const m = stone.clone(); m.side = THREE.DoubleSide; statueMats.set(stone, m); }
+  const mat = statueMats.get(stone);
+  s.traverse((o) => { if (o.isMesh) { o.material = mat; o.castShadow = true; } });
+  return s;
+}
+
 export function buildHero(cls, look) {
   return fromGlb(`hero_${cls}`, look || {}) || fromGlb('hero_knight', look || {}) || buildKnight(look);
 }

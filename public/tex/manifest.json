@@ -1,0 +1,292 @@
+{
+ "v": 6,
+ "tex": {
+  "1sgsi19": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "crypt.floor"
+  },
+  "13a1mhw": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "crypt.wall"
+  },
+  "qe1pvv": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "crypt.top"
+  },
+  "1nw8is9": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "crypt.pillar"
+  },
+  "kh1j1j": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "crypt.trim"
+  },
+  "j3oi4x": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "cavern.floor"
+  },
+  "otskvt": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "cavern.wall"
+  },
+  "x3k11w": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "cavern.top"
+  },
+  "1vvnyxo": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "cavern.pillar"
+  },
+  "1as14k2": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "cavern.trim"
+  },
+  "11k0xur": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 1,
+   "name": "infernal.floor"
+  },
+  "1qvb0yg": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 1,
+   "name": "infernal.wall"
+  },
+  "iyw002": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "infernal.top"
+  },
+  "12om4b3": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 1,
+   "name": "infernal.pillar"
+  },
+  "8xlp3o": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "infernal.trim"
+  },
+  "1lrt1w4": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.grass"
+  },
+  "6tfpvw": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.cobble"
+  },
+  "1bfo7pk": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.dirt"
+  },
+  "spzej2": {
+   "s": 512,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "town.plaster"
+  },
+  "ztr59u": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "town.timber"
+  },
+  "d1hxjb": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.roof"
+  },
+  "1ia1t75": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.roof2"
+  },
+  "slcizt": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.roof3"
+  },
+  "1pqj12k": {
+   "s": 512,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "town.stone"
+  },
+  "i4uym4": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "town.bark"
+  },
+  "f541k1": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "extra.sand"
+  },
+  "v1yc7k": {
+   "s": 256,
+   "n": 1,
+   "r": 1,
+   "e": 0,
+   "name": "extra.rock"
+  },
+  "imnc6y": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "extra.hay"
+  },
+  "rb1ilb": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "extra.townStatue"
+  },
+  "sr8b3": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "extra.statue"
+  },
+  "97hr0z": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "extra.obsidianStatue"
+  },
+  "1ffuzqw": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "extra.water"
+  },
+  "crqk0g": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.wood"
+  },
+  "1o0zu0w": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.darkwood"
+  },
+  "9o96es": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.iron"
+  },
+  "1qji7cs": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.steel"
+  },
+  "7ttao2": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.gold"
+  },
+  "kqxdkz": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.cloth"
+  },
+  "xt62q0": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.clothN"
+  },
+  "460hbk": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.bone"
+  },
+  "1jezypb": {
+   "s": 256,
+   "n": 1,
+   "r": 0,
+   "e": 0,
+   "name": "common.leather"
+  }
+ }
+}

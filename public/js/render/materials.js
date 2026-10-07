@@ -10,16 +10,23 @@ export function texSize() { return quality === 'high' ? 512 : 256; }
 export function useNormals() { return quality !== 'low'; }
 
 // Textured standard material. `repeat` scales UVs (geometry UVs are in meters / tile).
-export function texMat(key, def, { repeat = 1, rough = 0.9, metal = 0, color = 0xffffff, emissive = 0x000000, size } = {}) {
-  const id = `${key}:${quality}:${repeat}:${rough}:${metal}:${color}`;
+// Painters that output roughness/emissive get those maps too: wet stone shines, lava seams glow.
+export function texMat(key, def, { repeat = 1, rough = 0.9, metal = 0, color = 0xffffff, emissive = 0x000000, glowK = 2.2, size } = {}) {
+  const id = `${key}:${quality}:${repeat}:${rough}:${metal}:${color}:${glowK}`;
   if (mats.has(id)) return mats.get(id);
-  const { map, normalMap } = paint(key, def, size || texSize(), useNormals());
+  const { map, normalMap, roughnessMap, emissiveMap } = paint(key, def, size || texSize(), useNormals());
   const m = new THREE.MeshStandardMaterial({ map, normalMap: normalMap || null, roughness: rough, metalness: metal, color, emissive });
+  if (roughnessMap && quality !== 'low') { m.roughnessMap = roughnessMap; m.roughness = Math.min(1, rough + 0.1); }
+  if (emissiveMap) { m.emissiveMap = emissiveMap; m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = glowK; }
   if (repeat !== 1) {
-    m.map = map.clone(); m.map.repeat.set(repeat, repeat); m.map.needsUpdate = true;
-    if (normalMap) { m.normalMap = normalMap.clone(); m.normalMap.repeat.set(repeat, repeat); m.normalMap.needsUpdate = true; }
+    for (const k of ['map', 'normalMap', 'roughnessMap', 'emissiveMap']) {
+      if (!m[k]) continue;
+      const src = m[k];
+      m[k] = src.clone(); m[k].repeat.set(repeat, repeat);
+      if (src.userData.clones && !src.userData.loaded) src.userData.clones.push(m[k]); else m[k].needsUpdate = true;
+    }
   }
-  if (m.normalMap) m.normalScale.set(0.9, 0.9);
+  if (m.normalMap) m.normalScale.set(1, 1);
   mats.set(id, m);
   return m;
 }
