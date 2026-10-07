@@ -25,7 +25,15 @@ export class Input {
     setInterval(() => this.pollPad(), 16);
   }
 
-  typing() { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'); }
+  // Only a visible box you can actually type in counts — not a slider or checkbox, and not a box
+  // left focused inside a window that has since closed (that used to switch off every
+  // handheld/controller protection until something else was clicked).
+  typing() {
+    const a = document.activeElement;
+    if (!a || a.offsetParent === null) return false;
+    if (a.tagName === 'TEXTAREA') return true;
+    return a.tagName === 'INPUT' && /^(text|password|number|search|email|url|tel)$/.test(a.type || 'text');
+  }
 
   bindKeyboard(canvas) {
     this.held = new Set();

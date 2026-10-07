@@ -253,6 +253,9 @@ export class UI {
     for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite', 'admin-panel']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
+    // Let go of whatever control had focus inside the closed window.
+    const a = document.activeElement;
+    if (a && a !== document.body && a.closest?.('.sheet, .modal') && a.closest('#create-modal') === null) a.blur();
     this.h.panelsChanged?.(false);
   }
   toggle(name) {
