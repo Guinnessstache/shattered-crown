@@ -1,7 +1,7 @@
 // Entry point: sign-in, hero select, and the main loop.
 import { io } from '/socket.io/socket.io.esm.min.js';
 import { World } from './render/world.js';
-import { loadModelManifest } from './render/models.js';
+import { loadModelManifest, skinnedHeroes } from './render/models.js';
 import { loadBakedTextures } from './render/textures.js';
 import { Input } from './input.js';
 import { UI, esc, $, $$ } from './ui.js';
@@ -86,6 +86,9 @@ for (const k of ['invertX', 'invertY']) {
 }
 $('#labels-toggle').checked = world.showLootLabels;
 $('#labels-toggle').addEventListener('change', (e) => { world.showLootLabels = e.target.checked; store.set('labels', e.target.checked ? '1' : '0'); });
+skinnedHeroes.enabled = store.get('mocap', '1') === '1';
+$('#mocap-toggle').checked = skinnedHeroes.enabled;
+$('#mocap-toggle').addEventListener('change', (e) => { skinnedHeroes.enabled = e.target.checked; store.set('mocap', e.target.checked ? '1' : '0'); ui.msg('Applies on the next area', 'info'); });
 addEventListener('pointerdown', () => { unlockAudio(); voice?.unlock(); }, { once: false });
 addEventListener('keydown', () => unlockAudio());
 

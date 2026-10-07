@@ -5,6 +5,7 @@ import { buildLevel, cutUniforms } from './level.js';
 import { THEME_TEX } from './textures.js';
 import { setMaterialQuality } from './materials.js';
 import { buildHero, buildMonster, buildMerchant, buildWolf, blobShadow, Animator } from './models.js';
+import { SkinnedAnimator } from './skinned.js';
 import * as P from './props.js';
 import { FX, projectileMesh, lootMesh } from './fx.js';
 import { Post } from './post.js';
@@ -144,7 +145,7 @@ export class World {
     switch (e.k) {
       case 'p': {
         obj = buildHero(e.cls || 'knight', e.look || {});
-        anim = new Animator(obj, { stride: 1.7 });
+        anim = obj.userData.rig === 'skinned' ? new SkinnedAnimator(obj) : new Animator(obj, { stride: 1.7 });
         r = 0.45;
         if (!extra.me) label = this.label(e.sync ? `${e.name} ⇣${e.sync}` : e.name, 'name');
         break;

@@ -5,3 +5,6 @@ data/
 dist/
 .neon
 .env.local
+
+# Licensed source art (Mixamo etc.) - usable in the game, not to be redistributed as raw files
+art-source/

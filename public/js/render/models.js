@@ -7,6 +7,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { common, flat, glow, blobShadowMaterial } from './materials.js';
 import { forgeItem, gearPalette } from './forge.js';
+import { buildSkinnedHero, attachToBone } from './skinned.js';
 
 const G = {
   box: (w, h, d) => new THREE.BoxGeometry(w, h, d),
@@ -459,6 +460,7 @@ export function buildSpider({ elite = false, scale = 1, brood = false } = {}) {
 
 // ---------------------------------------------------------------- factory
 const glbCache = new Map();
+const clipCache = new Map(); // animation clips of skinned (mocap) models
 const loader = new GLTFLoader();
 loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/vendor/three/examples/jsm/libs/draco/gltf/'));
 let manifest = null;
@@ -470,7 +472,7 @@ export async function loadModelManifest() {
     if (!r.ok) return;
     manifest = await r.json();
     await Promise.all(Object.entries(manifest.models || {}).map(async ([key, file]) => {
-      try { const g = await loader.loadAsync(`/models/${file}`); glbCache.set(key, g.scene); } catch (e) { console.warn('model', key, e); }
+      try { const g = await loader.loadAsync(`/models/${file}`); glbCache.set(key, g.scene); if (g.animations?.length) clipCache.set(key, g.animations); } catch (e) { console.warn('model', key, e); }
     }));
   } catch { /* no manifest: use built-in models */ }
 }
@@ -609,7 +611,33 @@ export function buildStatue(key, stone, pose = 'raise') {
   return s;
 }
 
+// Classes with a motion-captured model (Mixamo) use it; the rest keep the Blender-built ones.
+const SKINNED = { knight: 'hero_knight_mx' };
+export const skinnedHeroes = { enabled: true };
+function skinnedHero(cls, look) {
+  const key = SKINNED[cls];
+  if (!key || !skinnedHeroes.enabled || !glbCache.has(key)) return null;
+  const h = buildSkinnedHero(glbCache.get(key), clipCache.get(key) || [], manifest.heights?.[key] || 1.8);
+  const { parts } = h.userData;
+  const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
+  parts.weapon = attachToBone(parts.handR, wpn, GRIP.weapon);
+  if (look.offhand) {
+    const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
+    parts.shield = attachToBone(parts.foreL, shd, GRIP.shield);
+  }
+  return h;
+}
+// How the game's weapons and shields sit on the Mixamo bones, in the rest pose (T-pose, palms
+// down, facing +Z, character's left = +X): blade out of the fist along the thumb (forward),
+// shield strapped on the back of the left forearm, upright when the arm crosses the chest.
+export const GRIP = {
+  weapon: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.025, 0.0] },
+  shield: { y: [0, 0, 1], z: [0, 1, 0], offset: [0.12, 0.08, 0.0], scale: 0.85 },
+};
+
 export function buildHero(cls, look) {
+  const sk = skinnedHero(cls, look || {});
+  if (sk) return sk;
   const h = fromGlb(`hero_${cls}`, look || {}) || fromGlb('hero_knight', look || {});
   if (!h) return buildKnight(look);
   mergeRig(h);

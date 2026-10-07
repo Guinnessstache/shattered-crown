@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hero Animations</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #14110e; color: #e8dcc4; font: 14px system-ui, sans-serif; overflow: hidden; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; padding: 8px 12px; background: rgba(0,0,0,.55); display: flex; gap: 6px; flex-wrap: wrap; z-index: 2; }
+  #bar button { color: #e8c070; background: none; padding: 4px 8px; border: 1px solid #5a4a30; border-radius: 4px; cursor: pointer; }
+  #bar button.on { background: #5a4a30; }
+</style>
+<script type="importmap">{ "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }</script>
+</head>
+<body>
+<div id="bar"></div>
+<script type="module" src="./anim.js"></script>
+</body>
+</html>
