@@ -3,18 +3,27 @@
     "hero_knight": "hero_knight.glb",
     "skeleton": "skeleton.glb",
     "goblin": "goblin.glb",
-    "ogre": "ogre.glb"
+    "ogre": "ogre.glb",
+    "hero_berserker": "hero_berserker.glb",
+    "hero_alchemist": "hero_alchemist.glb",
+    "hero_druid": "hero_druid.glb"
   },
   "rigs": {
     "hero_knight": "humanoid",
     "skeleton": "humanoid",
     "goblin": "humanoid",
-    "ogre": "humanoid"
+    "ogre": "humanoid",
+    "hero_berserker": "humanoid",
+    "hero_alchemist": "humanoid",
+    "hero_druid": "humanoid"
   },
   "heights": {
     "hero_knight": 1.95,
     "skeleton": 1.9,
     "goblin": 1.3,
-    "ogre": 4.2
+    "ogre": 4.2,
+    "hero_berserker": 1.95,
+    "hero_alchemist": 1.9,
+    "hero_druid": 1.95
   }
 }

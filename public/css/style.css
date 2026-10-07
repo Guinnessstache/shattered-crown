@@ -437,3 +437,7 @@ body.pad-on .screen button:focus, body.pad-on .screen input:focus, body.pad-on #
 .ah-empty { padding: 18px 8px; text-align: center; color: var(--muted); font-size: 13px; }
 #ah-sell-grid, #salvage-grid { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); }
 .cmp .same { color: var(--muted); }
+.lbl.name.ally { color: #9ad8ff; }
+.class-list { grid-template-columns: 1fr 1fr; }
+@media (max-width: 560px) { .class-list { grid-template-columns: 1fr; } }
+.class-opt .ci { font-family: initial; }

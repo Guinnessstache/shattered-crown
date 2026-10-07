@@ -69,7 +69,7 @@ export function itemIcon(it) {
   if (cache.has(key)) return cache.get(key);
   if (!renderer) setup();
   let obj;
-  if (it.slot === 'weapon') { obj = weaponMesh(it.kind, it.tier, it.rarity); obj.rotation.z = -Math.PI / 4; obj.position.set(0.3, -0.3, 0); }
+  if (it.slot === 'weapon') { obj = weaponMesh(it.kind, it.tier, it.rarity); obj.rotation.z = -Math.PI / 4; obj.position.set(0.3, -0.3, 0); if (it.kind === 'staff') { obj.scale.setScalar(0.72); obj.position.set(0.35, -0.2, 0); } }
   else if (it.slot === 'offhand') obj = shieldMesh(it.tier, it.rarity);
   else if (it.slot === 'ring' || it.slot === 'amulet') obj = jewel(it.slot, it.rarity);
   else obj = armorPiece(it.slot, it.tier);

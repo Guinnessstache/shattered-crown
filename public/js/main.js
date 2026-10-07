@@ -177,7 +177,7 @@ function loadChars() {
 function renderHeroes() {
   const list = $('#hero-list');
   if (!chars.length) list.innerHTML = '<div class="empty">No heroes yet. Create one to begin.</div>';
-  else list.innerHTML = chars.map((c) => `<button class="hero ${selected === c.id ? 'active' : ''}" data-id="${c.id}" type="button"><span class="portrait">⚔</span><span class="meta"><b>${esc(c.name)}</b><small>Level ${c.level} ${esc(classes[c.cls]?.name || c.cls)} · deepest floor ${c.maxFloor || 1}</small></span></button>`).join('');
+  else list.innerHTML = chars.map((c) => `<button class="hero ${selected === c.id ? 'active' : ''}" data-id="${c.id}" type="button"><span class="portrait">${classes[c.cls]?.icon || '⚔'}</span><span class="meta"><b>${esc(c.name)}</b><small>Level ${c.level} ${esc(classes[c.cls]?.name || c.cls)} · deepest floor ${c.maxFloor || 1}</small></span></button>`).join('');
   $$('#hero-list .hero').forEach((b) => b.addEventListener('click', () => selectHero(Number(b.dataset.id))));
   const pick = chars.find((c) => c.id === selected) || chars[0];
   if (pick) selectHero(pick.id);
@@ -185,6 +185,15 @@ function renderHeroes() {
 }
 
 let preview = null;
+// Show what a new hero of this class looks like, standing behind the menu.
+function previewClass(cls) {
+  if (preview) world.remove(preview);
+  const town = generateTown();
+  const st = classes[cls]?.starter || {};
+  const look = { weapon: { kind: { sword: 'sword', axe: 'axe', staff: 'staff', mace: 'mace' }[st.weapon] || 'sword', tier: 0, rarity: 'common' }, offhand: st.offhand ? { tier: 0, rarity: 'common' } : null, chest: { tier: 0 } };
+  preview = 'preview';
+  world.add({ id: preview, k: 'p', pid: 'x', name: '', cls, look, x: town.start.x, y: town.start.y - 6, rot: 0 }, { me: true });
+}
 function selectHero(id) {
   selected = id;
   const c = chars.find((x) => x.id === id);
@@ -201,16 +210,16 @@ function selectHero(id) {
 
 $('#new-hero-btn').addEventListener('click', () => {
   const keys = Object.keys(classes);
-  const locked = [['Berserker', 'Twin axes and fury. Coming soon.'], ['Alchemist', 'Bombs and potions. Coming soon.'], ['Druid', 'Nature magic and shapeshifting. Coming soon.']];
-  $('#class-list').innerHTML = keys.map((k, i) => `<button class="class-opt ${i === 0 ? 'active' : ''}" data-cls="${k}" type="button"><b>${esc(classes[k].name)}</b><p>${esc(classes[k].blurb)}</p></button>`).join('')
-    + locked.map(([n, b]) => `<div class="class-opt locked"><b>${n}</b><p>${b}</p></div>`).join('');
-  $$('#class-list [data-cls]').forEach((b) => b.addEventListener('click', () => $$('#class-list [data-cls]').forEach((x) => x.classList.toggle('active', x === b))));
+  $('#class-list').innerHTML = keys.map((k, i) => `<button class="class-opt ${i === 0 ? 'active' : ''}" data-cls="${k}" type="button"><b><span class="ci">${classes[k].icon || ''}</span> ${esc(classes[k].name)}</b><p>${esc(classes[k].blurb)}</p></button>`).join('');
+  const pickClass = (b) => { $$('#class-list [data-cls]').forEach((x) => x.classList.toggle('active', x === b)); previewClass(b.dataset.cls); };
+  $$('#class-list [data-cls]').forEach((b) => b.addEventListener('click', () => pickClass(b)));
+  previewClass(keys[0]);
   $('#create-error').textContent = '';
   $('#hero-name').value = '';
   $('#create-modal').classList.remove('hidden');
   if (input.source === 'pad') $('#class-list .class-opt.active')?.focus(); else $('#hero-name').focus();
 });
-$('#create-modal [data-close]').addEventListener('click', () => $('#create-modal').classList.add('hidden'));
+$('#create-modal [data-close]').addEventListener('click', () => { $('#create-modal').classList.add('hidden'); if (chars.some((c) => c.id === selected)) selectHero(selected); });
 $('#create-hero-btn').addEventListener('click', () => {
   const cls = $('#class-list .active')?.dataset.cls || 'knight';
   socket.emit('createChar', { name: $('#hero-name').value, cls }, (r) => {
@@ -375,7 +384,7 @@ function titlePad(name) {
       return;
     }
     if (name === 'skill2') { // B: back out of the new-hero window
-      if (root.id === 'create-modal') { $('#create-modal').classList.add('hidden'); setTimeout(focusTitle, 0); }
+      if (root.id === 'create-modal') { $('#create-modal').classList.add('hidden'); if (chars.some((c) => c.id === selected)) selectHero(selected); setTimeout(focusTitle, 0); }
       return;
     }
     if (root.id === 'select' && name === 'skill0') { $('#new-hero-btn').click(); setTimeout(() => $('#hero-name').blur() || focusTitle(), 50); return; } // X

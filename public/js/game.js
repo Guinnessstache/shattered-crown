@@ -1,8 +1,7 @@
 // The running game: local hero movement (predicted), combat input, server snapshots and events.
 import { buildMap, moveCircle, TILE, T, toTile } from '/shared/map.js';
-import { SKILLS, xpToNext, MONSTERS, RARITY_COLOR, MATERIALS } from '/shared/rules.js';
+import { SKILLS, CLASSES, xpToNext, MONSTERS, RARITY_COLOR, MATERIALS } from '/shared/rules.js';
 
-const SKILL_ORDER = ['cleave', 'bash', 'charge', 'warcry'];
 const PLAYER_R = 0.45;
 const now = () => performance.now() / 1000;
 
@@ -23,6 +22,7 @@ export class Game {
     this.active = true;
     this.handlers = [];
     this.bind();
+    ui.setClassSkills(this.skillIds);
     ui.setChar(this.char, this.derived, this.next);
   }
 
@@ -85,7 +85,10 @@ export class Game {
       this.ui.craftResult(`<div class="muted" style="font-size:12px;margin-bottom:4px">You crafted:</div>${this.ui.itemCard(d.item)}`);
     });
     this.on('travel', (d) => { this.ui.center(d.text, 1400); this.sfx.play('stairs'); document.querySelector('#fade').classList.add('on'); this.input.enabled = false; });
-    this.on('buff', (b) => { if (b.id === 'warcry') this.ui.msg('War Cry! Damage and armor up', 'good'); });
+    this.on('buff', (b) => {
+      const txt = { warcry: 'War Cry! Damage and armor up', bloodlust: 'Bloodlust! Faster attacks and life steal', ward: `Arcane Ward: absorbs ${b.hp} damage` }[b.id];
+      if (txt) this.ui.msg(txt, 'good');
+    });
     this.on('chat', (c) => this.ui.chatLine(c.name, c.text));
     this.on('party', (p) => {
       this.partyInfo = p; this.roster = p.members;
@@ -179,7 +182,7 @@ export class Game {
         const v = W.ents.get(ev.id);
         if (!v || ev.id === this.myId) break;
         if (v.k === 'p') {
-          v.anim?.play(ev.a);
+          v.anim?.play(SKILLS[ev.a]?.anim || ev.a);
           if (ev.rot != null) { v.trot = ev.rot; v.rot = ev.rot; }
           this.skillFx(v, ev.a, ev.rot ?? v.rot, false);
         } else {
@@ -199,6 +202,7 @@ export class Game {
         const h = (v.obj.userData.height || 1.6) * (v.obj.scale.y || 1);
         if (v.k === 'p') {
           if (ev.b) { W.fx.number(v.x, h, v.y, 'Block', 'block'); this.sfx.play('block'); v.anim?.play('bash', 0.15); break; }
+          if (ev.w) { W.fx.number(v.x, h, v.y, 'Absorbed', 'block'); this.sfx.play('block'); break; }
           if (ev.id === this.myId) { this.hp = ev.hp; W.fx.number(v.x, h, v.y, ev.v, 'me'); this.sfx.play('hurt'); W.shakeCam(0.18); this.input.rumble(90, 0.5, 0.3); }
           if (v.anim) v.anim.flinch = 0.15;
           W.fx.emit(v.x, 1.1, v.y, 8, { color: 0xb01010, speed: 2, size: 0.18, life: 0.4 });
@@ -263,14 +267,45 @@ export class Game {
     if (ev.k === 'summon') { W.fx.ring(ev.x, ev.y, 3, 0x8a3aff); }
     if (ev.k === 'burst') W.fx.emit(ev.x, 1.1, ev.y, 18, { color: 0xff7020, speed: 3, size: 0.35, life: 0.45 });
     if (ev.k === 'spark') W.fx.emit(ev.x, 1.1, ev.y, 6, { color: 0xffe0a0, speed: 2, size: 0.12, life: 0.3 });
+    if (ev.k === 'leap') { W.fx.shockwave(ev.x, ev.y, ev.r, 0xff8040); W.fx.emit(ev.x, 0.2, ev.y, 30, { color: 0x9a8a70, speed: 5, up: 3, size: 0.35, life: 0.7 }); W.shakeCam(0.35); this.sfx.play('slam'); }
+    if (ev.k === 'flask') { W.fx.shockwave(ev.x, ev.y, ev.r, 0xff6a20); W.fx.emit(ev.x, 0.6, ev.y, 28, { color: 0xff7020, speed: 4, up: 3, size: 0.4, life: 0.55 }); this.sfx.play('fireball'); }
+    if (ev.k === 'nova') { W.fx.shockwave(ev.x, ev.y, ev.r, 0x80d8ff); W.fx.ring(ev.x, ev.y, ev.r * 0.9, 0xc0f0ff, 60, 0.4); W.fx.emit(ev.x, 0.5, ev.y, 30, { color: 0xd0f4ff, speed: 6, up: 1.5, size: 0.3, life: 0.6, gravity: 2 }); this.sfx.play('block'); }
+    if (ev.k === 'acid') { W.fx.pool(ev.x, ev.y, ev.r, 0x5aff3a, ev.dur); W.fx.emit(ev.x, 0.4, ev.y, 20, { color: 0x8aff5a, speed: 2.5, up: 2, size: 0.3, life: 0.6 }); this.sfx.play('potion'); this.acidFx(ev); }
+    if (ev.k === 'roots') { W.fx.roots(ev.x, ev.y, ev.r, ev.dur); this.sfx.play('break'); }
+    if (ev.k === 'rejuv') { W.fx.pool(ev.x, ev.y, ev.r, 0x5aff8a, 0.9, { opacity: 0.25, pulse: false }); W.fx.ring(ev.x, ev.y, ev.r * 0.8, 0x8aff9a, 50, 0.4); this.sfx.play('potion'); }
+    if (ev.k === 'thornhit') W.fx.emit(ev.x, 1.0, ev.y, 6, { color: 0x8ac04a, speed: 2, size: 0.14, life: 0.3 });
+    if (ev.k === 'bloodlust') { const v = W.ents.get(ev.id); if (v) { W.fx.emit(v.x, 1, v.y, 30, { color: 0xff2020, speed: 2, up: 3, size: 0.3, life: 0.8, gravity: -1 }); W.fx.shockwave(v.x, v.y, 2.5, 0xff3030); } }
+    if (ev.k === 'ward') {
+      const v = W.ents.get(ev.id);
+      if (v && ev.on && !v.bubble) { v.bubble = W.fx.bubble(v.obj); clearTimeout(v.bubbleT); v.bubbleT = setTimeout(() => { v.bubble?.removeFromParent(); v.bubble = null; }, 12500); }
+      if (v && !ev.on && v.bubble) { v.bubble.removeFromParent(); v.bubble = null; }
+    }
     if (ev.k === 'heal' || ev.k === 'mana') {
       const v = W.ents.get(ev.id);
       if (v) W.fx.emit(v.x, 0.4, v.y, 24, { color: ev.k === 'heal' ? 0xff4050 : 0x4a7aff, speed: 0.8, up: 3, size: 0.25, life: 0.9, gravity: -1 });
     }
   }
 
+  // Bubbles rising from an acid pool for as long as it lasts.
+  acidFx(ev) {
+    const W = this.world; const end = now() + ev.dur;
+    const tick = () => { if (now() > end || !this.active) return; for (let i = 0; i < 3; i++) { const a = Math.random() * Math.PI * 2; const d = Math.sqrt(Math.random()) * ev.r; W.fx.emit(ev.x + Math.cos(a) * d, 0.1, ev.y + Math.sin(a) * d, 1, { color: 0x7aff4a, speed: 0.2, up: 1.5, size: 0.25, life: 0.7, gravity: -0.5 }); } setTimeout(tick, 90); };
+    tick();
+  }
+
   skillFx(v, a, rot, mine) {
     const W = this.world;
+    const fx = Math.sin(rot); const fy = Math.cos(rot);
+    if (a === 'throw') { if (mine) this.sfx.play('swing'); }
+    if (a === 'frenzy') { W.fx.swing(v.x, v.y, rot, { radius: 2.4, arc: 2.2, color: 0xff9060, dur: 0.2 }); setTimeout(() => W.fx.swing(v.x, v.y, rot, { dir: -1, radius: 2.4, arc: 2.2, color: 0xff6040, dur: 0.2 }), 160); this.sfx.play('swing'); setTimeout(() => this.sfx.play('swing'), 160); }
+    if (a === 'leap') this.sfx.play('charge');
+    if (a === 'whirlwind') { for (let i = 0; i < 4; i++) setTimeout(() => { const t = this.world.ents.get(v.id) || v; W.fx.swing(t.x, t.y, rot + i * 1.6, { radius: 3, arc: 4.2, color: 0xffc080, dur: 0.25 }); this.sfx.play('swing'); }, i * 200); }
+    if (a === 'bloodlust') this.sfx.play('warcry');
+    if (a === 'flask' || a === 'thorns') this.sfx.play('swing');
+    if (a === 'nova' || a === 'acid' || a === 'entangle') W.fx.emit(v.x + fx * 0.6, 1.4, v.y + fy * 0.6, 10, { color: a === 'nova' ? 0xc0f0ff : a === 'acid' ? 0x8aff5a : 0x8ac04a, speed: 1.5, size: 0.2, life: 0.4 });
+    if (a === 'ward') { this.sfx.play('levelup'); W.fx.ring(v.x, v.y, 3, 0xa080ff, 40, 1.0); }
+    if (a === 'wolf') { this.sfx.play('warcry'); }
+    if (a === 'rejuv') W.fx.emit(v.x, 1.6, v.y, 16, { color: 0x8aff9a, speed: 1.5, up: 2, size: 0.25, life: 0.6, gravity: -1 });
     if (a === 'swing') { W.fx.swing(v.x, v.y, rot, { dir: (v.anim?.combo || 0) === 1 ? -1 : 1, radius: 2.0, arc: 2.0 }); if (mine) this.sfx.play('swing'); }
     if (a === 'cleave') { W.fx.swing(v.x, v.y, rot, { radius: 2.9, arc: 3.5, color: 0xffd080, dur: 0.35 }); this.sfx.play('cleave'); }
     if (a === 'bash') { W.fx.emit(v.x + Math.sin(rot) * 1.2, 1, v.y + Math.cos(rot) * 1.2, 14, { color: 0xffe0a0, speed: 3, size: 0.2, life: 0.35 }); this.sfx.play('bash'); if (mine) W.shakeCam(0.2); }
@@ -318,6 +353,9 @@ export class Game {
     this.sfx.play('potion');
   }
 
+  get skillIds() { return CLASSES[this.char?.cls]?.skills || CLASSES.knight.skills; }
+  get ranged() { return !!CLASSES[this.char?.cls]?.ranged; }
+
   aimRot() {
     const me = this.me;
     if (this.input.source === 'keyboard' && this.input.mouse.inside) {
@@ -330,7 +368,7 @@ export class Game {
     for (const v of this.world.ents.values()) {
       if ((v.k !== 'm' && v.k !== 'b') || v.dead) continue;
       const d = Math.hypot(v.x - me.x, v.y - me.y);
-      if (d > 5.5) continue;
+      if (d > (this.ranged ? 12 : 5.5)) continue;
       let da = Math.atan2(v.x - me.x, v.y - me.y) - face; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
       const s = d + Math.abs(da) * 2.2 + (v.k === 'b' ? 3 : 0);
       if (s < bs) { bs = s; best = v; }
@@ -345,14 +383,14 @@ export class Game {
     this.me.rot = rot;
     this.nextAtk = t + this.derived.atkInterval;
     this.swingUntil = t + this.derived.atkInterval * 0.6;
-    this.me.anim.play('swing');
-    this.skillFx(this.me, 'swing', rot, true);
+    if (this.ranged) { this.me.anim.play('throw'); this.skillFx(this.me, 'throw', rot, true); } else { this.me.anim.play('swing'); this.skillFx(this.me, 'swing', rot, true); }
     this.socket.emit('atk', { rot });
     this.sendPos(true);
   }
 
   useSkill(i) {
-    const id = SKILL_ORDER[i]; const sk = SKILLS[id];
+    const id = this.skillIds[i]; const sk = SKILLS[id];
+    if (!sk) return;
     const rank = this.char.skills[id] || 0;
     const t = now();
     if (!this.me || this.dash) return;
@@ -366,8 +404,13 @@ export class Game {
     this.nextAtk = t + 0.35; this.swingUntil = t + 0.3;
     this.sendPos(true);
     this.socket.emit('skill', { id, rot });
-    this.me.anim.play(id);
+    this.me.anim.play(sk.anim || id);
     this.skillFx(this.me, id, rot, true);
+    if (id === 'leap') {
+      const dist = sk.dist(rank);
+      const to = moveCircle(this.map, this.me.x, this.me.y, Math.sin(rot) * dist, Math.cos(rot) * dist, PLAYER_R);
+      this.dash = { fx: this.me.x, fy: this.me.y, x: to.x, y: to.y, t: 0, dur: 0.36, leap: true };
+    }
     if (id === 'charge') {
       const dist = sk.dist(rank);
       const to = moveCircle(this.map, this.me.x, this.me.y, Math.sin(rot) * dist, Math.cos(rot) * dist, PLAYER_R);
@@ -427,8 +470,8 @@ export class Game {
     if (this.dash) {
       const d = this.dash; d.t += dt;
       const k = Math.min(1, d.t / d.dur);
-      me.x = d.fx + (d.x - d.fx) * k; me.y = d.fy + (d.y - d.fy) * k; me.speed = 12;
-      W.fx.emit(me.x, 0.3, me.y, 2, { color: 0xd0c0a0, speed: 0.5, up: 1, size: 0.3, life: 0.4, gravity: 0 });
+      me.x = d.fx + (d.x - d.fx) * k; me.y = d.fy + (d.y - d.fy) * k; me.speed = d.leap ? 0 : 12;
+      if (!d.leap) W.fx.emit(me.x, 0.3, me.y, 2, { color: 0xd0c0a0, speed: 0.5, up: 1, size: 0.3, life: 0.4, gravity: 0 });
       if (k >= 1) { this.dash = null; this.sendPos(true); }
     } else if (!this.dead) {
       const mv = this.input.moveVector();

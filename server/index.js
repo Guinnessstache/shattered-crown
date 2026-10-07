@@ -101,7 +101,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       try {
         const acct = await db.getAccount(aid);
         if (!acct) return reply(cb, 'Account not found');
-        reply(cb, null, { chars: await db.listCharacters(aid), username: acct.username || acct.email || 'Adventurer', classes: Object.fromEntries(Object.entries(CLASSES).map(([k, c]) => [k, { name: c.name, blurb: c.blurb }])), max: MAX_CHARS });
+        reply(cb, null, { chars: await db.listCharacters(aid), username: acct.username || acct.email || 'Adventurer', classes: Object.fromEntries(Object.entries(CLASSES).map(([k, c]) => [k, { name: c.name, blurb: c.blurb, icon: c.icon, starter: c.starter }])), max: MAX_CHARS });
       } catch (e) { console.error(e); reply(cb, 'Server error'); }
     });
 

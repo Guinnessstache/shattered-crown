@@ -1,6 +1,6 @@
 # Shattered Crown — to-do list
 
-- [ ] More classes (Berserker, Alchemist, Druid are already shown as "coming soon" on the new-hero screen)
+- [x] More classes — Berserker, Alchemist and Druid, each with 4 skills, their own Blender models and starter gear
 - [x] Auction house — Vesna the Broker in town; browse/filter, list items for gold (5% fee), buy, cancel, collect sales
 - [x] Crafting that makes items with random (RNG) stats — Orlen the Artificer in town; salvage items into materials, craft magic/rare/legendary gear
 - [x] Make high-end loot rarer the higher its rarity

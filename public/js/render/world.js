@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildLevel, cutUniforms } from './level.js';
 import { THEME_TEX } from './textures.js';
 import { setMaterialQuality } from './materials.js';
-import { buildHero, buildMonster, buildMerchant, blobShadow, Animator } from './models.js';
+import { buildHero, buildMonster, buildMerchant, buildWolf, blobShadow, Animator } from './models.js';
 import * as P from './props.js';
 import { FX, projectileMesh, lootMesh } from './fx.js';
 import { MONSTERS, MATERIALS } from '/shared/rules.js';
@@ -136,6 +136,13 @@ export class World {
         if (e.elite || e.boss) label = this.label(e.name, e.boss ? 'npc' : 'name');
         v.bar = this.hpBar(obj.userData.height || 1.8);
         obj.add(v.bar);
+        break;
+      }
+      case 'w': {
+        obj = buildWolf();
+        anim = new Animator(obj, { stride: 1.6 });
+        label = this.label(e.name, 'name ally');
+        r = 0.45;
         break;
       }
       case 'n': {
@@ -285,7 +292,7 @@ export class World {
     const camQ = this.camera.quaternion;
     for (const v of this.ents.values()) {
       if (v.k === 'x') { v.x += v.vx * dt; v.y += v.vy * dt; v.obj.position.set(v.x, 0, v.y); v.obj.rotation.y = Math.atan2(v.vx, v.vy); continue; }
-      if (v.k === 'p' || v.k === 'm' || v.k === 'n') {
+      if (v.k === 'p' || v.k === 'm' || v.k === 'n' || v.k === 'w') {
         if (!v.local) {
           const px = v.x; const py = v.y;
           v.x += (v.tx - v.x) * k; v.y += (v.ty - v.y) * k;

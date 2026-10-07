@@ -64,6 +64,15 @@ export function weaponMesh(kind = 'sword', tier = 0, rarity = 'common') {
     const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -0.6, 0), new THREE.Vector3(0, -0.3, 0.14), new THREE.Vector3(0, 0, 0.18), new THREE.Vector3(0, 0.3, 0.14), new THREE.Vector3(0, 0.6, 0)]);
     g.add(M(new THREE.TubeGeometry(curve, 12, 0.025, 5), common('darkwood')));
     const s = M(G.cyl(0.004, 0.004, 1.2, 3), flat(0xddddcc), 0, 0, 0); g.add(s);
+  } else if (kind === 'staff') {
+    const wood = common(tier >= 3 ? 'darkwood' : 'wood');
+    g.add(M(G.cyl(0.03, 0.035, 1.7, 7), wood, 0, 0.35, 0));
+    // gnarled head: a cradle of prongs around a crystal
+    const cryC = glowC || [0x7ad0ff, 0x7ad0ff, 0x9a7aff, 0xff9a40, 0xff5a5a, 0xffd060][tier];
+    for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; const pr = M(G.cone(0.03, 0.26, 4), wood, Math.cos(a) * 0.06, 1.28, Math.sin(a) * 0.06); pr.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35); g.add(pr); }
+    const cry = M(new THREE.OctahedronGeometry(0.08), glow(cryC, 0.9), 0, 1.3, 0); cry.scale.y = 1.6; g.add(cry);
+    g.add(M(G.cyl(0.045, 0.045, 0.06, 7), guard, 0, 1.18, 0));
+    g.add(M(G.cyl(0.04, 0.04, 0.05, 7), guard, 0, -0.45, 0));
   } else if (kind === 'hammer') {
     g.add(M(G.cyl(0.03, 0.035, 0.6, 6), common('wood'), 0, 0.2, 0));
     g.add(M(G.box(0.24, 0.12, 0.12), common('iron', { metal: 0.7 }), 0, 0.5, 0));
@@ -445,7 +454,7 @@ function texturize(root, { tier = null } = {}) {
     else if (nm === 'trim') m = tier == null ? common('gold', { metal: 0.85, rough: 0.3, color: col }) : trimMat(Math.max(1, tier));
     else if (nm === 'iron' || nm === 'rustiron') m = common('iron', { metal: src.metalness ?? 0.6, rough: src.roughness ?? 0.5, color: col });
     else if (nm === 'leather') m = common('leather', { rough: 0.85, color: col });
-    else if (nm === 'cloth' || nm === 'capemat') m = common('cloth', { rough: 0.9, color: col });
+    else if (nm === 'cloth' || nm === 'capemat') m = common('clothN', { rough: 0.9, color: col });
     else if (nm === 'bone') m = common('bone', { rough: 0.75, color: col });
     else if (nm === 'wood') m = common('wood', { rough: 0.85, color: col });
     if (m) o.material = m;
@@ -523,7 +532,27 @@ export function buildMonster(type, { elite = false } = {}) {
 }
 
 export function buildHero(cls, look) {
-  return fromGlb(`hero_${cls}`, look || {}) || buildKnight(look);
+  return fromGlb(`hero_${cls}`, look || {}) || fromGlb('hero_knight', look || {}) || buildKnight(look);
+}
+
+// Druid's summon: a translucent glowing wolf.
+export function buildWolf() {
+  return quadruped({
+    h: 0.5, len: 1.0, w: 0.17,
+    dress(p) {
+      const fur = new THREE.MeshStandardMaterial({ color: 0x9ad8ff, emissive: 0x2a6a9a, emissiveIntensity: 0.8, roughness: 0.6, transparent: true, opacity: 0.85 });
+      const b = M(G.sph(0.3, 12, 8), fur, 0, 0.05, 0); b.scale.set(0.85, 0.85, 1.6); p.torso.add(b);
+      const chest = M(G.sph(0.26, 10, 8), fur, 0, 0.08, 0.3); p.torso.add(chest);
+      const h = M(G.sph(0.17, 10, 8), fur, 0, 0.08, 0.05); h.scale.set(0.9, 0.85, 1.1); p.head.add(h);
+      const snout = M(G.cone(0.1, 0.26, 7), fur, 0, 0.03, 0.24); snout.rotation.x = Math.PI / 2; p.head.add(snout);
+      for (const sx of [-1, 1]) {
+        const ear = M(G.cone(0.05, 0.14, 4), fur, sx * 0.08, 0.22, 0.0); p.head.add(ear);
+        p.head.add(M(G.sph(0.025, 6, 4), glow(0xe0f8ff), sx * 0.07, 0.12, 0.16));
+      }
+      for (const l of p.legs) limb(l, 0.44, 0.055, 0.04, fur, 6);
+      const t = M(G.cone(0.08, 0.5, 6), fur, 0, 0.05, -0.25); t.rotation.x = -Math.PI / 2 - 0.5; p.tail.add(t);
+    },
+  });
 }
 
 export function blobShadow(r = 0.5) {
@@ -558,7 +587,7 @@ export class Animator {
   }
 
   play(name, dur) {
-    const DUR = { swing: 0.34, cleave: 0.5, bash: 0.36, charge: 0.32, warcry: 0.7, attack: 0.45, shoot: 0.5, slam: 1.3, cast: 0.5, hit: 0.2 };
+    const DUR = { swing: 0.34, cleave: 0.5, bash: 0.36, charge: 0.32, warcry: 0.7, attack: 0.45, shoot: 0.5, slam: 1.3, cast: 0.5, hit: 0.2, frenzy: 0.4, leap: 0.42, whirlwind: 0.8, throw: 0.3 };
     if (name === 'swing') this.combo = (this.combo + 1) % 3;
     this.action = { name, t: 0, dur: dur || DUR[name] || 0.4, combo: this.combo };
   }
@@ -657,6 +686,35 @@ export class Animator {
         case 'shoot': {
           const draw = k < 0.6 ? ease(k / 0.6) : 1;
           armLx = -1.5; armLz = 0.1; foreL = 0; armRx = -1.5; armRz = 0.6 * draw; foreR = -1.6 * draw; torsoY = 0.5;
+          break;
+        }
+        case 'frenzy': {
+          // two quick slashes: right-to-left then back
+          const h = k < 0.5 ? k / 0.5 : (k - 0.5) / 0.5; const dir = k < 0.5 ? 1 : -1;
+          const up = h < 0.35 ? ease(h / 0.35) : 1 - ease(Math.min(1, (h - 0.35) / 0.5));
+          armRx = -1.5 - up * 0.3; armRz = -dir * lerp(1.0, -1.0, ease(Math.min(1, h * 1.4))); foreR = -0.4;
+          torsoY = dir * lerp(0.6, -0.6, ease(Math.min(1, h * 1.4))); torsoX = 0.2;
+          legL = 0.3; legR = -0.3;
+          break;
+        }
+        case 'leap': {
+          const up = Math.sin(Math.min(1, k / 0.85) * Math.PI);
+          hipsY = up * 0.9;
+          armRx = k < 0.7 ? -2.9 : lerp(-2.9, 0.6, ease((k - 0.7) / 0.3)); armLx = k < 0.7 ? -2.5 : -0.4; foreR = -0.3;
+          legL = -0.9 * up; legR = 0.3 * up; shinL = 1.4 * up; shinR = 1.2 * up;
+          torsoX = k > 0.7 ? 0.5 : -0.2;
+          break;
+        }
+        case 'whirlwind': {
+          bodyRotY = -ease(k) * Math.PI * 4;
+          armRx = -1.6; armRz = -1.4; foreR = 0; armLx = -1.4; armLz = 1.2; foreL = -0.2; torsoX = 0.15;
+          legL = 0.3; legR = -0.3; shinL = 0.3; shinR = 0.3; hipsY = -0.08;
+          break;
+        }
+        case 'throw': {
+          const up = k < 0.35 ? ease(k / 0.35) : 1 - ease((k - 0.35) / 0.65);
+          armRx = lerp(-0.3, -2.6, up) + (k > 0.35 ? (1 - up) * 1.4 : 0); foreR = -0.3 - up * 0.5; torsoY = 0.4 * up - (k > 0.35 ? 0.3 * (1 - up) : 0);
+          armLx = -0.6; foreL = -0.8;
           break;
         }
         case 'cast': {

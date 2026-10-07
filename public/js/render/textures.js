@@ -273,6 +273,7 @@ export const THEME_TEX = {
     steel: { kind: 'metal', a: 0xb8bcc4, b: 0x7a7e86, seed: 54 },
     gold: { kind: 'metal', a: 0xf0c060, b: 0xa07020, seed: 55 },
     cloth: { kind: 'cloth', a: 0x8a2028, b: 0x5a1018, seed: 56 },
+    clothN: { kind: 'cloth', a: 0xe8e8e8, b: 0xa8a8a8, seed: 59 }, // neutral, tinted by the material color
     bone: { kind: 'plaster', a: 0xe8dcc0, b: 0xb8a888, seed: 57 },
     leather: { kind: 'plaster', a: 0x6a4428, b: 0x3a2414, seed: 58 },
   },

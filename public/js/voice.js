@@ -121,16 +121,28 @@ export class Voice {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('Voice chat needs HTTPS (or localhost).');
     let raw;
     try { raw = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(), video: false }); }
-    catch { raw = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(''), video: false }); } // saved mic unplugged
+    catch (e) {
+      if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') throw new Error(micBlockedHelp());
+      try { raw = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(''), video: false }); } // saved mic unplugged
+      catch (e2) { throw new Error(e2?.name === 'NotAllowedError' ? micBlockedHelp() : e2?.name === 'NotFoundError' ? 'No microphone found' : (e2?.message || 'Microphone unavailable')); }
+    }
     const ctx = this.ctx();
+    // Safari often leaves the audio context suspended/"interrupted" right after the mic starts.
+    try { await ctx?.resume(); } catch { /* ignore */ }
     this.raw = raw;
-    this.srcNode = ctx.createMediaStreamSource(raw);
-    this.gainNode = ctx.createGain(); this.gainNode.gain.value = this.micGain;
-    this.dest = ctx.createMediaStreamDestination();
-    this.srcNode.connect(this.gainNode); this.gainNode.connect(this.dest);
-    const an = ctx.createAnalyser(); an.fftSize = 512; this.gainNode.connect(an);
-    this.meter = { analyser: an, buf: new Uint8Array(an.fftSize) };
-    const stream = this.dest.stream;
+    // Safari (all Mac/iPhone browsers using WebKit) can send silence through a Web Audio
+    // MediaStreamDestination, so there we send the microphone track as-is. The volume slider
+    // then only affects the level meter; everywhere else it changes what friends hear.
+    this.direct = IS_WEBKIT || !ctx || ctx.state !== 'running';
+    if (ctx) {
+      this.srcNode = ctx.createMediaStreamSource(raw);
+      this.gainNode = ctx.createGain(); this.gainNode.gain.value = this.micGain;
+      this.srcNode.connect(this.gainNode);
+      const an = ctx.createAnalyser(); an.fftSize = 512; this.gainNode.connect(an);
+      this.meter = { analyser: an, buf: new Uint8Array(an.fftSize) };
+      if (!this.direct) { this.dest = ctx.createMediaStreamDestination(); this.gainNode.connect(this.dest); }
+    }
+    const stream = this.direct ? raw : this.dest.stream;
     this.local = stream; this.micOn = true;
     for (const p of this.peers.values()) for (const t of stream.getTracks()) p.pc.addTrack(t, stream);
     this.applyGate();
@@ -141,11 +153,18 @@ export class Voice {
     this.devices.input = id || '';
     if (!this.raw) return; // used next time the mic starts
     const fresh = await navigator.mediaDevices.getUserMedia({ audio: this.audioConstraints(), video: false });
-    this.srcNode.disconnect();
-    this.raw.getTracks().forEach((t) => t.stop());
+    const oldTrack = this.raw.getAudioTracks()[0];
+    try { this.srcNode?.disconnect(); } catch { /* ignore */ }
     this.raw = fresh;
-    this.srcNode = this.ctx().createMediaStreamSource(fresh);
-    this.srcNode.connect(this.gainNode);
+    if (this.ctx()) { this.srcNode = this.ctx().createMediaStreamSource(fresh); this.srcNode.connect(this.gainNode); }
+    if (this.direct) {
+      // Sending the mic directly: swap the track on every call.
+      const nt = fresh.getAudioTracks()[0];
+      for (const p of this.peers.values()) for (const snd of p.pc.getSenders()) if (snd.track === oldTrack) snd.replaceTrack(nt).catch(() => {});
+      this.local = fresh;
+      this.applyGate();
+    }
+    oldTrack?.stop();
   }
 
   setOutput(id) { this.devices.output = id || ''; for (const p of this.peers.values()) this.applySink(p.audio); }
@@ -176,7 +195,7 @@ export class Voice {
     this.local.getTracks().forEach((t) => t.stop());
     this.raw?.getTracks().forEach((t) => t.stop());
     try { this.srcNode?.disconnect(); this.gainNode?.disconnect(); } catch { /* ignore */ }
-    this.local = null; this.raw = null; this.meter = null; this.micOn = false;
+    this.local = null; this.raw = null; this.meter = null; this.micOn = false; this.direct = false;
     this.socket.emit('media', { mic: false });
   }
 
@@ -184,4 +203,15 @@ export class Voice {
   pushToTalk(down) { this.pttDown = down; this.applyGate(); }
   unlock() { this.ctx(); for (const p of this.peers.values()) p.audio?.play().catch(() => {}); }
   closeAll() { for (const pid of [...this.peers.keys()]) this.closePeer(pid); this.stop(); }
+}
+
+const UA = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+// Safari on Mac, and every browser on iPhone/iPad (they all use WebKit).
+const IS_WEBKIT = /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(UA) || /iPad|iPhone|iPod/.test(UA);
+
+function micBlockedHelp() {
+  if (/Mac OS X|Macintosh/.test(UA) && !/iPhone|iPad/.test(UA)) {
+    return 'Microphone blocked. On a Mac: System Settings → Privacy & Security → Microphone → turn on your browser, then quit and reopen it. Also allow the mic for this site (click the icon left of the address).';
+  }
+  return 'Microphone blocked. Allow microphone access for this site (click the icon left of the address bar), then try again.';
 }

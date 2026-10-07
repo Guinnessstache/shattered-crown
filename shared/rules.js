@@ -17,12 +17,49 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // ---------------------------------------------------------------- classes
 export const CLASSES = {
   knight: {
+    icon: '🛡',
     name: 'Knight',
     blurb: 'Sword and shield. Takes the hits so the party doesn\'t have to.',
     base: { str: 15, dex: 10, vit: 14, spi: 8 },
     grow: { str: 1, dex: 1, vit: 1, spi: 1 },
     skills: ['cleave', 'bash', 'charge', 'warcry'],
     starter: { weapon: 'sword', offhand: 'shield', chest: 'chest' },
+    starterName: 'Rusty Sword',
+    power: 'str', // the stat that boosts damage
+  },
+  berserker: {
+    icon: '🪓',
+    name: 'Berserker',
+    blurb: 'A big axe and no fear. Hits hardest, heals by hurting things, wears little armor.',
+    base: { str: 17, dex: 13, vit: 12, spi: 6 },
+    grow: { str: 1, dex: 1, vit: 1, spi: 1 },
+    skills: ['frenzy', 'leap', 'whirlwind', 'bloodlust'],
+    starter: { weapon: 'axe', chest: 'chest' },
+    starterName: 'Notched Axe',
+    power: 'str',
+  },
+  alchemist: {
+    icon: '⚗',
+    name: 'Alchemist',
+    blurb: 'Hurls bolts and explosive brews from range, and bends fire, frost and acid.',
+    base: { str: 7, dex: 12, vit: 11, spi: 17 },
+    grow: { str: 1, dex: 1, vit: 1, spi: 1 },
+    skills: ['flask', 'nova', 'acid', 'ward'],
+    starter: { weapon: 'staff', chest: 'chest' },
+    starterName: 'Cracked Staff',
+    power: 'spi',
+    ranged: true, // basic attack throws a bolt instead of swinging
+  },
+  druid: {
+    icon: '🌿',
+    name: 'Druid',
+    blurb: 'Calls on the wild: thorns, grasping roots, a spirit wolf, and healing for the whole party.',
+    base: { str: 10, dex: 10, vit: 14, spi: 14 },
+    grow: { str: 1, dex: 1, vit: 1, spi: 1 },
+    skills: ['thorns', 'entangle', 'wolf', 'rejuv'],
+    starter: { weapon: 'staff', chest: 'chest' },
+    starterName: 'Gnarled Staff',
+    power: 'spi',
   },
 };
 export const FREE_POINTS_PER_LEVEL = 3;
@@ -48,7 +85,74 @@ export const SKILLS = {
     desc: (r) => `Rally the party: +${20 + 5 * (r - 1)}% damage and +${15 + 5 * (r - 1)} armor for 12s. Nearby enemies are slowed.`,
     mana: (r) => 16 + 2 * r, cd: 20, radius: 9, dmg: (r) => 0.2 + 0.05 * (r - 1), armor: (r) => 15 + 5 * (r - 1), dur: 12,
   },
+
+  // ---- Berserker
+  frenzy: {
+    name: 'Frenzy', key: 1, unlock: 1, max: 10, icon: '🪓', anim: 'frenzy',
+    desc: (r) => `Two furious strikes in quick succession, each dealing ${pc(0.85 + 0.08 * (r - 1))}% weapon damage.`,
+    mana: (r) => 5 + r, cd: 1.6, range: 2.8, arc: 120, mult: (r) => 0.85 + 0.08 * (r - 1),
+  },
+  leap: {
+    name: 'Leap', key: 2, unlock: 2, max: 10, icon: '⤴', anim: 'leap',
+    desc: (r) => `Leap up to ${(6 + 0.3 * (r - 1)).toFixed(1)}m and crash down, hitting everything nearby for ${pc(1.3 + 0.13 * (r - 1))}% damage and stunning them.`,
+    mana: (r) => 9 + r, cd: 6, dist: (r) => 6 + 0.3 * (r - 1), radius: 2.6, mult: (r) => 1.3 + 0.13 * (r - 1), stun: 0.8,
+  },
+  whirlwind: {
+    name: 'Whirlwind', key: 3, unlock: 4, max: 10, icon: '🌀', anim: 'whirlwind',
+    desc: (r) => `Spin with your weapon out, hitting everything around you 4 times for ${pc(0.55 + 0.06 * (r - 1))}% damage each.`,
+    mana: (r) => 12 + r, cd: 7, radius: 3, pulses: 4, mult: (r) => 0.55 + 0.06 * (r - 1),
+  },
+  bloodlust: {
+    name: 'Bloodlust', key: 4, unlock: 6, max: 10, icon: '🩸', anim: 'warcry',
+    desc: (r) => `Fly into a rage for 10s: +${25 + 5 * (r - 1)}% attack speed and ${5 + (r - 1)}% of damage dealt returned as life.`,
+    mana: (r) => 14 + 2 * r, cd: 22, dur: 10, atkSpd: (r) => 25 + 5 * (r - 1), lifeSteal: (r) => 5 + (r - 1),
+  },
+
+  // ---- Alchemist
+  flask: {
+    name: 'Fire Flask', key: 1, unlock: 1, max: 10, icon: '🧪', anim: 'cast',
+    desc: (r) => `Throw a flask that bursts into flame, hitting everything within 2.2m for ${pc(1.3 + 0.13 * (r - 1))}% damage.`,
+    mana: (r) => 5 + r, cd: 1.4, speed: 13, life: 0.8, radius: 2.2, mult: (r) => 1.3 + 0.13 * (r - 1),
+  },
+  nova: {
+    name: 'Frost Nova', key: 2, unlock: 2, max: 10, icon: '❄', anim: 'cast',
+    desc: (r) => `A ring of frost bursts from you, dealing ${pc(0.8 + 0.08 * (r - 1))}% damage, freezing enemies for ${(1.2 + 0.1 * (r - 1)).toFixed(1)}s and slowing them after.`,
+    mana: (r) => 10 + r, cd: 7, radius: 4.5, mult: (r) => 0.8 + 0.08 * (r - 1), stun: (r) => 1.2 + 0.1 * (r - 1),
+  },
+  acid: {
+    name: 'Acid Pool', key: 3, unlock: 4, max: 10, icon: '☣', anim: 'cast',
+    desc: (r) => `Splash a pool of acid ahead of you that burns enemies standing in it for ${pc(0.3 + 0.03 * (r - 1))}% damage twice a second for 5s.`,
+    mana: (r) => 12 + r, cd: 8, dist: 5, radius: 2.6, dur: 5, mult: (r) => 0.3 + 0.03 * (r - 1),
+  },
+  ward: {
+    name: 'Arcane Ward', key: 4, unlock: 6, max: 10, icon: '🔮', anim: 'warcry',
+    desc: (r) => `Shield yourself and nearby allies for 12s, absorbing ${25 + 10 * (r - 1)} damage plus 1.5× your Spirit.`,
+    mana: (r) => 15 + 2 * r, cd: 18, radius: 9, dur: 12, absorb: (r, spi) => Math.round(25 + 10 * (r - 1) + spi * 1.5),
+  },
+
+  // ---- Druid
+  thorns: {
+    name: 'Thorn Volley', key: 1, unlock: 1, max: 10, icon: '🌿', anim: 'cast',
+    desc: (r) => `Fling a fan of 5 thorns, each dealing ${pc(0.55 + 0.05 * (r - 1))}% damage.`,
+    mana: (r) => 5 + r, cd: 1.6, count: 5, spread: 0.6, speed: 15, life: 0.6, mult: (r) => 0.55 + 0.05 * (r - 1),
+  },
+  entangle: {
+    name: 'Entangle', key: 2, unlock: 2, max: 10, icon: '🌱', anim: 'cast',
+    desc: (r) => `Roots burst from the ground ahead, dealing ${pc(0.6 + 0.06 * (r - 1))}% damage and holding enemies in place for ${(2 + 0.2 * (r - 1)).toFixed(1)}s.`,
+    mana: (r) => 9 + r, cd: 7, dist: 5, radius: 3, mult: (r) => 0.6 + 0.06 * (r - 1), stun: (r) => 2 + 0.2 * (r - 1),
+  },
+  wolf: {
+    name: 'Spirit Wolf', key: 3, unlock: 4, max: 10, icon: '🐺', anim: 'warcry',
+    desc: (r) => `Summon a spirit wolf for 30s. It hunts nearby enemies, biting for ${pc(0.55 + 0.06 * (r - 1))}% of your damage.`,
+    mana: (r) => 18 + 2 * r, cd: 25, dur: 30, mult: (r) => 0.55 + 0.06 * (r - 1),
+  },
+  rejuv: {
+    name: 'Rejuvenation', key: 4, unlock: 6, max: 10, icon: '✚', anim: 'cast',
+    desc: (r) => `Heal yourself and allies within 9m for 10% of their life at once, then ${20 + 4 * (r - 1)}% more over 6s.`,
+    mana: (r) => 16 + 2 * r, cd: 16, radius: 9, dur: 6, hot: (r) => 0.2 + 0.04 * (r - 1),
+  },
 };
+function pc(x) { return Math.round(x * 100); }
 
 export function xpToNext(level) { return round(90 * Math.pow(level, 1.6)); }
 
@@ -58,6 +162,7 @@ export const BASES = {
   sword: { slot: 'weapon', kind: 'sword', names: ['Short Sword', 'Broadsword', 'Knight\'s Blade', 'Runed Longsword', 'Dread Blade', 'Kingsfall'], dmg: 1.0, speed: 0.52, reach: 2.4 },
   axe: { slot: 'weapon', kind: 'axe', names: ['Hatchet', 'War Axe', 'Bearded Axe', 'Reaver', 'Doom Axe', 'Worldsplitter'], dmg: 1.12, speed: 0.6, reach: 2.3 },
   mace: { slot: 'weapon', kind: 'mace', names: ['Club', 'Flanged Mace', 'Morningstar', 'Bonebreaker', 'Grave Maul', 'Sunhammer'], dmg: 1.18, speed: 0.64, reach: 2.2, stunChance: 0.08 },
+  staff: { slot: 'weapon', kind: 'staff', names: ['Quarterstaff', 'Oak Staff', 'Runed Staff', 'Spirit Staff', 'Grave Staff', 'Staff of Embers'], dmg: 1.08, speed: 0.6, reach: 2.6 },
   shield: { slot: 'offhand', kind: 'shield', names: ['Buckler', 'Kite Shield', 'Tower Shield', 'Aegis', 'Bulwark', 'Dragonguard'], armor: 1.0, block: [10, 26] },
   helm: { slot: 'head', kind: 'helm', names: ['Leather Cap', 'Iron Helm', 'Great Helm', 'Winged Helm', 'Dread Visage', 'Crown of Ash'], armor: 0.8 },
   chest: { slot: 'chest', kind: 'chest', names: ['Padded Jerkin', 'Chain Mail', 'Scale Hauberk', 'Plate Cuirass', 'Gothic Plate', 'Ember Plate'], armor: 1.6 },
@@ -170,12 +275,12 @@ export function newCharacter(name, cls = 'knight') {
   const rng = new RNG(Date.now() ^ (Math.random() * 1e9));
   const equip = {};
   for (const [slot, base] of Object.entries(c.starter)) equip[slot] = makeItem(rng, base, 1, 'common');
-  equip.weapon.name = 'Rusty Sword'; equip.weapon.dmg = [3, 6];
+  equip.weapon.name = c.starterName; equip.weapon.dmg = [3, 6];
   return {
     v: 1,
     name, cls, level: 1, xp: 0, gold: 50,
     stats: { ...c.base }, statPts: 0,
-    skills: { cleave: 1, bash: 0, charge: 0, warcry: 0 }, skillPts: 0,
+    skills: Object.fromEntries(c.skills.map((id, i) => [id, i === 0 ? 1 : 0])), skillPts: 0,
     equip, inv: new Array(INV_SIZE).fill(null),
     potions: { hp: 4, mp: 2 },
     mats: {},
@@ -210,8 +315,10 @@ export function derive(ch, buffs = null) {
   d.hpRegen = +(0.3 + L * 0.05 + m.regen).toFixed(1);
   d.mpRegen = +(1.2 + s.spi * 0.06).toFixed(2);
   const wd = weapon?.dmg || [2, 4];
-  let mult = 1 + s.str * 0.015 + m.dmgPct / 100;
+  const power = CLASSES[ch.cls]?.power || 'str';
+  let mult = 1 + s[power] * 0.015 + m.dmgPct / 100;
   if (buffs?.warcry) mult += buffs.warcry.dmg;
+  if (buffs?.bloodlust) { m.atkSpd += buffs.bloodlust.atkSpd; m.lifeSteal += buffs.bloodlust.lifeSteal; }
   d.dmg = [Math.max(1, round(wd[0] * mult)), Math.max(2, round(wd[1] * mult))];
   d.atkInterval = +((weapon?.speed || 0.55) / (1 + m.atkSpd / 100)).toFixed(3);
   d.reach = weapon ? BASES[weapon.base]?.reach || 2.3 : 2.0;
@@ -291,7 +398,7 @@ export function salvageYield(it, rng) {
 }
 
 // Craftable bases (what you pick) and the quality tiers (what it costs and how good it rolls).
-export const CRAFT_BASES = ['sword', 'axe', 'mace', 'shield', 'helm', 'chest', 'gloves', 'boots', 'ring', 'amulet'];
+export const CRAFT_BASES = ['sword', 'axe', 'mace', 'staff', 'shield', 'helm', 'chest', 'gloves', 'boots', 'ring', 'amulet'];
 export const RECIPES = {
   apprentice: { name: 'Apprentice', rarity: 'magic', ilvlBonus: 0, cost: { scrap: 6, dust: 3 }, gold: (l) => 40 + l * 12, desc: 'A magic item with 1–2 random bonuses.' },
   master: { name: 'Master', rarity: 'rare', ilvlBonus: 2, cost: { scrap: 10, dust: 6, shard: 3 }, gold: (l) => 150 + l * 30, desc: 'A rare item with 3–4 random bonuses.' },

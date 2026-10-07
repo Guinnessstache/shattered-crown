@@ -3,7 +3,7 @@
 // (client-side prediction) and the server checks those moves.
 import { buildMap, moveCircle, lineOfSight, distanceField, toTile, TILE, isBossFloor } from '../shared/map.js';
 import { RNG, hashSeed } from '../shared/rng.js';
-import { MONSTERS, SKILLS, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
+import { MONSTERS, SKILLS, CLASSES, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY } from '../shared/rules.js';
 
 const TICK = 1 / 20;
 const PLAYER_R = 0.45;
@@ -35,6 +35,8 @@ export class Zone {
     this.bossAlive = false;
     this.snapEvery = 2; this.tickN = 0;
     this.travel = null; // pending stairs countdown
+    this.timers = []; // [time, fn] for delayed hits (Frenzy's second strike, Whirlwind pulses)
+    this.areas = []; // lingering ground effects (Acid Pool)
     const partySize = Math.max(1, party.members.size);
     if (this.spec.kind === 'dungeon') {
       for (const s of this.map.spawns) this.spawnMonster(s.type, s.x, s.y, { elite: s.elite, boss: s.boss, partySize, quiet: true });
@@ -82,6 +84,7 @@ export class Zone {
       case 'c': return { id: e.id, k: 'c', x: e.x, y: e.y, rot: e.rot, open: e.open, boss: e.boss };
       case 'l': return { id: e.id, k: 'l', x: r1(e.x), y: r1(e.y), gold: e.gold || 0, potion: e.potion || null, mat: e.mat || null, n: e.n || 0, item: e.item || null };
       case 'x': return { id: e.id, k: 'x', kind: e.kind, x: r1(e.x), y: r1(e.y), vx: r2(e.vx), vy: r2(e.vy) };
+      case 'w': return { id: e.id, k: 'w', type: 'wolf', x: r1(e.x), y: r1(e.y), rot: r2(e.rot), name: e.name };
       default: return null;
     }
   }
@@ -129,6 +132,8 @@ export class Zone {
     this.players.delete(pid);
     this.events.push({ t: 'pdel', id: p.id });
     for (const e of [...this.ents.values()]) if (e.owner === pid) this.ents.delete(e.id);
+    for (const e of [...this.ents.values()]) if (e.k === 'w' && e.by === pid) this.delEnt(e.id);
+    this.areas = this.areas.filter((a) => a.by !== pid);
   }
 
   refreshStats(pid) {
@@ -172,6 +177,12 @@ export class Zone {
     if ((p.cds.atk || 0) > this.time + 0.06) return;
     p.cds.atk = this.time + p.stats.atkInterval * 0.92;
     if (Number.isFinite(d?.rot)) p.rot = d.rot;
+    if (CLASSES[p.cls]?.ranged) {
+      // Alchemist: a quick arcane bolt instead of a swing.
+      this.events.push({ t: 'act', id: p.id, a: 'throw', rot: r2(p.rot) });
+      this.shoot(p, 'bolt', p.rot, { speed: 17, life: 0.75, mult: 0.9 });
+      return;
+    }
     this.events.push({ t: 'act', id: p.id, a: 'swing', rot: r2(p.rot), n: d?.n | 0 });
     this.meleeHit(p, { range: p.stats.reach, arc: 120, mult: 1 });
   }
@@ -182,7 +193,7 @@ export class Zone {
     const id = String(d?.id || '');
     const sk = SKILLS[id];
     const rank = p.member.char.skills?.[id] || 0;
-    if (!sk || rank < 1) return;
+    if (!sk || rank < 1 || !CLASSES[p.cls]?.skills.includes(id)) return;
     if ((p.cds[id] || 0) > this.time + 0.06) return;
     const cost = sk.mana(rank);
     if (p.mp < cost) { this.party.emitTo(pid, 'msg', { text: 'Not enough mana', kind: 'warn' }); return; }
@@ -225,6 +236,142 @@ export class Zone {
         this.aggro(m, p);
       }
       this.events.push({ t: 'fx', k: 'warcry', x: r1(p.x), y: r1(p.y), r: sk.radius });
+    }
+    this.classSkill(p, id, sk, rank);
+  }
+
+  // ------------------------------------------------------------ Berserker / Alchemist / Druid skills
+  classSkill(p, id, sk, rank) {
+    const fx = Math.sin(p.rot); const fy = Math.cos(p.rot);
+    switch (id) {
+      case 'frenzy':
+        this.meleeHit(p, { range: Math.max(sk.range, p.stats.reach + 0.3), arc: sk.arc, mult: sk.mult(rank) });
+        this.after(0.16, () => { if (!p.dead && this.players.get(p.pid) === p) this.meleeHit(p, { range: Math.max(sk.range, p.stats.reach + 0.3), arc: sk.arc, mult: sk.mult(rank) }); });
+        break;
+      case 'leap': {
+        const from = { x: p.x, y: p.y };
+        const to = moveCircle(this.map, p.x, p.y, fx * sk.dist(rank), fy * sk.dist(rank), p.r);
+        p.x = to.x; p.y = to.y; p.lastPosAt = this.time;
+        p.dashing = true;
+        this.events.push({ t: 'dash', id: p.id, fx: r2(from.x), fy: r2(from.y), x: r2(to.x), y: r2(to.y), leap: 1 });
+        this.after(0.36, () => {
+          p.dashing = false;
+          if (p.dead || this.players.get(p.pid) !== p) return;
+          this.events.push({ t: 'fx', k: 'leap', x: r1(to.x), y: r1(to.y), r: sk.radius });
+          for (const e of this.targetsNear(to.x, to.y, sk.radius)) this.damageTarget(p, e, sk.mult(rank), { stun: sk.stun, knock: 1.2 });
+        });
+        break;
+      }
+      case 'whirlwind':
+        for (let i = 0; i < sk.pulses; i++) {
+          this.after(i * 0.2, () => {
+            if (p.dead || this.players.get(p.pid) !== p) return;
+            for (const e of this.targetsNear(p.x, p.y, sk.radius)) if (lineOfSight(this.map, p.x, p.y, e.x, e.y)) this.damageTarget(p, e, sk.mult(rank));
+          });
+        }
+        break;
+      case 'bloodlust':
+        p.buffs.bloodlust = { atkSpd: sk.atkSpd(rank), lifeSteal: sk.lifeSteal(rank), until: this.time + sk.dur };
+        p.stats = p.member.derived(p.buffs);
+        this.party.emitTo(p.pid, 'buff', { id: 'bloodlust', dur: sk.dur });
+        this.events.push({ t: 'fx', k: 'bloodlust', id: p.id });
+        break;
+      case 'flask':
+        this.shoot(p, 'flask', p.rot, { speed: sk.speed, life: sk.life, mult: sk.mult(rank), aoe: sk.radius });
+        break;
+      case 'nova':
+        this.events.push({ t: 'fx', k: 'nova', x: r1(p.x), y: r1(p.y), r: sk.radius });
+        for (const e of this.targetsNear(p.x, p.y, sk.radius)) {
+          if (e.k === 'm') e.slowUntil = this.time + sk.stun(rank) + 3;
+          this.damageTarget(p, e, sk.mult(rank), { stun: sk.stun(rank) });
+        }
+        break;
+      case 'acid': {
+        const at = moveCircle(this.map, p.x, p.y, fx * sk.dist, fy * sk.dist, 0.3);
+        this.areas.push({ kind: 'acid', x: at.x, y: at.y, r: sk.radius, until: this.time + sk.dur, next: this.time + 0.1, every: 0.5, by: p.pid, mult: sk.mult(rank) });
+        this.events.push({ t: 'fx', k: 'acid', x: r1(at.x), y: r1(at.y), r: sk.radius, dur: sk.dur });
+        break;
+      }
+      case 'ward': {
+        const absorb = sk.absorb(rank, p.stats.spi);
+        for (const q of this.players.values()) {
+          if (q.dead || Math.hypot(q.x - p.x, q.y - p.y) > sk.radius) continue;
+          q.buffs.ward = { hp: absorb, until: this.time + sk.dur };
+          this.party.emitTo(q.pid, 'buff', { id: 'ward', dur: sk.dur, hp: absorb });
+          this.events.push({ t: 'fx', k: 'ward', id: q.id, on: 1 });
+        }
+        break;
+      }
+      case 'thorns':
+        for (let i = 0; i < sk.count; i++) {
+          const a = p.rot + (i / (sk.count - 1) - 0.5) * sk.spread;
+          this.shoot(p, 'thorn', a, { speed: sk.speed, life: sk.life, mult: sk.mult(rank) });
+        }
+        break;
+      case 'entangle': {
+        const at = moveCircle(this.map, p.x, p.y, fx * sk.dist, fy * sk.dist, 0.3);
+        this.events.push({ t: 'fx', k: 'roots', x: r1(at.x), y: r1(at.y), r: sk.radius, dur: sk.stun(rank) });
+        for (const e of this.targetsNear(at.x, at.y, sk.radius)) this.damageTarget(p, e, sk.mult(rank), { stun: sk.stun(rank) });
+        break;
+      }
+      case 'wolf': {
+        for (const e of [...this.ents.values()]) if (e.k === 'w' && e.by === p.pid) this.delEnt(e.id);
+        const at = moveCircle(this.map, p.x, p.y, fx * 1.5, fy * 1.5, 0.4);
+        this.addEnt({ id: eid('w'), k: 'w', by: p.pid, name: `${p.name}'s Wolf`, x: at.x, y: at.y, rot: p.rot, r: 0.4, until: this.time + sk.dur, mult: sk.mult(rank), target: null, atkAt: 0, speed: 6.6 });
+        this.events.push({ t: 'fx', k: 'summon', x: r1(at.x), y: r1(at.y) });
+        break;
+      }
+      case 'rejuv':
+        for (const q of this.players.values()) {
+          if (q.dead || Math.hypot(q.x - p.x, q.y - p.y) > sk.radius) continue;
+          q.hp = Math.min(q.stats.hpMax, q.hp + q.stats.hpMax * 0.1);
+          q.hot = { perSec: (q.stats.hpMax * sk.hot(rank)) / sk.dur, until: this.time + sk.dur };
+          this.events.push({ t: 'fx', k: 'heal', id: q.id });
+        }
+        this.events.push({ t: 'fx', k: 'rejuv', x: r1(p.x), y: r1(p.y), r: sk.radius });
+        break;
+      default: break;
+    }
+  }
+
+  after(delay, fn) { this.timers.push([this.time + delay, fn]); }
+
+  // A player projectile (Alchemist bolt / flask, Druid thorns). `by` is the shooter's pid.
+  shoot(p, kind, rot, { speed, life, mult, aoe = 0 }) {
+    const sx = Math.sin(rot); const sy = Math.cos(rot);
+    this.addEnt({ id: eid('x'), k: 'x', kind, by: p.pid, x: p.x + sx * 0.6, y: p.y + sy * 0.6, vx: sx * speed, vy: sy * speed, mult, aoe, life });
+  }
+
+  updateWolf(w, dt) {
+    const owner = this.players.get(w.by);
+    if (!owner || this.time >= w.until) { this.events.push({ t: 'fx', k: 'summon', x: r1(w.x), y: r1(w.y) }); this.delEnt(w.id); return; }
+    // Pick the closest living monster near the wolf and its owner.
+    let t = w.target ? this.ents.get(w.target) : null;
+    if (!t || t.state === 'dead' || Math.hypot(t.x - owner.x, t.y - owner.y) > 14) {
+      t = null; let bd = 10;
+      for (const e of this.ents.values()) {
+        if (e.k !== 'm' || e.state === 'dead' || e.state === 'idle' && Math.hypot(e.x - owner.x, e.y - owner.y) > 7) continue;
+        const d = Math.hypot(e.x - w.x, e.y - w.y);
+        if (d < bd && lineOfSight(this.map, w.x, w.y, e.x, e.y)) { bd = d; t = e; }
+      }
+      w.target = t?.id || null;
+    }
+    let gx; let gy; let stop;
+    if (t) { gx = t.x; gy = t.y; stop = t.r + w.r + 0.5; } else { gx = owner.x - Math.sin(owner.rot) * 1.4; gy = owner.y - Math.cos(owner.rot) * 1.4; stop = 0.6; }
+    const d = Math.hypot(gx - w.x, gy - w.y);
+    if (d > 18) { w.x = owner.x; w.y = owner.y; return; } // got lost: catch up
+    if (d > stop) {
+      const st = Math.min(d - stop, w.speed * dt * (t ? 1 : Math.min(1.3, d / 2)));
+      const np = moveCircle(this.map, w.x, w.y, (gx - w.x) / d * st, (gy - w.y) / d * st, w.r);
+      w.x = np.x; w.y = np.y;
+    }
+    if (d > 0.05) w.rot = Math.atan2(gx - w.x, gy - w.y);
+    if (t && d <= stop + 0.15 && this.time >= w.atkAt) {
+      w.atkAt = this.time + 0.9;
+      this.events.push({ t: 'act', id: w.id, a: 'attack', rot: r2(w.rot) });
+      const keep = owner.stats;
+      this.damageTarget(owner, t, w.mult);
+      owner.stats = keep;
     }
   }
 
@@ -500,7 +647,14 @@ export class Zone {
       return;
     }
     const lvl = src?.level || Math.max(1, this.spec.floor);
-    const dmg = Math.max(1, Math.round(amount * (1 - armorReduction(s.armor, lvl))));
+    let dmg = Math.max(1, Math.round(amount * (1 - armorReduction(s.armor, lvl))));
+    const ward = p.buffs.ward;
+    if (ward && ward.hp > 0) {
+      const soak = Math.min(ward.hp, dmg);
+      ward.hp -= soak; dmg -= soak;
+      if (ward.hp <= 0) { delete p.buffs.ward; this.events.push({ t: 'fx', k: 'ward', id: p.id, on: 0 }); }
+      if (dmg <= 0) { this.events.push({ t: 'dmg', id: p.id, v: 0, w: 1 }); return; }
+    }
     p.hp -= dmg;
     this.events.push({ t: 'dmg', id: p.id, v: dmg, hp: Math.max(0, Math.ceil(p.hp)) });
     if (p.hp <= 0) this.killPlayer(p);
@@ -679,6 +833,7 @@ export class Zone {
       e.life -= dt;
       const nx = e.x + e.vx * dt; const ny = e.y + e.vy * dt;
       let hit = false;
+      if (e.by) { this.updateShot(e, nx, ny); continue; }
       if (!this.map.walkableAt(nx, ny) || e.life <= 0) hit = true;
       else {
         for (const p of this.players.values()) {
@@ -689,6 +844,39 @@ export class Zone {
       e.x = nx; e.y = ny;
       if (hit) { this.events.push({ t: 'fx', k: e.kind === 'fireball' ? 'burst' : 'spark', x: r1(nx), y: r1(ny) }); this.delEnt(e.id); }
     }
+  }
+
+  updateShot(e, nx, ny) {
+    const p = this.players.get(e.by);
+    let hitT = null;
+    for (const t of this.targetsNear(nx, ny, 0.35)) { hitT = t; break; }
+    const wall = !this.map.walkableAt(nx, ny);
+    e.x = nx; e.y = ny;
+    if (!hitT && !wall && e.life > 0) return;
+    this.delEnt(e.id);
+    if (!p || p.dead) return;
+    if (e.aoe && (hitT || wall || e.life <= 0)) {
+      this.events.push({ t: 'fx', k: 'flask', x: r1(nx), y: r1(ny), r: e.aoe });
+      for (const t of this.targetsNear(nx, ny, e.aoe)) if (lineOfSight(this.map, nx, ny, t.x, t.y)) this.damageTarget(p, t, e.mult);
+    } else if (hitT) {
+      this.events.push({ t: 'fx', k: e.kind === 'thorn' ? 'thornhit' : 'spark', x: r1(nx), y: r1(ny) });
+      this.damageTarget(p, hitT, e.mult);
+    }
+  }
+
+  updateAreas() {
+    if (!this.areas.length) return;
+    const now = this.time;
+    this.areas = this.areas.filter((a) => {
+      if (now >= a.until) return false;
+      if (now >= a.next) {
+        a.next = now + a.every;
+        const p = this.players.get(a.by);
+        if (!p) return false;
+        for (const t of this.targetsNear(a.x, a.y, a.r)) if (t.k === 'm') this.damageTarget(p, t, a.mult);
+      }
+      return true;
+    });
   }
 
   // ------------------------------------------------------------ main loop
@@ -713,6 +901,9 @@ export class Zone {
         continue;
       }
       if (p.buffs.warcry && p.buffs.warcry.until < now) { delete p.buffs.warcry; p.stats = p.member.derived(p.buffs); }
+      if (p.buffs.bloodlust && p.buffs.bloodlust.until < now) { delete p.buffs.bloodlust; p.stats = p.member.derived(p.buffs); }
+      if (p.buffs.ward && p.buffs.ward.until < now) { delete p.buffs.ward; this.events.push({ t: 'fx', k: 'ward', id: p.id, on: 0 }); }
+      if (p.hot) { if (p.hot.until < now) p.hot = null; else p.hp = Math.min(p.stats.hpMax, p.hp + p.hot.perSec * dt); }
       p.hp = Math.min(p.stats.hpMax, p.hp + p.stats.hpRegen * dt * (this.spec.kind === 'town' ? 20 : 1));
       p.mp = Math.min(p.stats.mpMax, p.mp + p.stats.mpRegen * dt * (this.spec.kind === 'town' ? 10 : 1));
       // Auto-pickup gold and potions you walk over.
@@ -725,8 +916,14 @@ export class Zone {
       if (now >= this.fieldAt) { this.updateField(); this.fieldAt = now + 0.35; }
       for (const e of this.ents.values()) if (e.k === 'm') this.updateMonster(e, dt);
       this.separate(dt);
-      this.updateProjectiles(dt);
     }
+    this.updateProjectiles(dt);
+    this.updateAreas();
+    if (this.timers.length) {
+      const due = this.timers.filter((t) => t[0] <= now);
+      if (due.length) { this.timers = this.timers.filter((t) => t[0] > now); for (const [, fn] of due) fn(); }
+    }
+    for (const e of [...this.ents.values()]) if (e.k === 'w') this.updateWolf(e, dt);
 
     // Old loot fades away after 5 minutes.
     if (this.tickN % 100 === 0) for (const e of [...this.ents.values()]) if (e.k === 'l' && now - e.born > 300) this.delEnt(e.id);
@@ -740,6 +937,7 @@ export class Zone {
     const ms = [];
     const players = [...this.players.values()];
     for (const e of this.ents.values()) {
+      if (e.k === 'w') { ms.push([e.id, r1(e.x), r1(e.y), r2(e.rot), 1, 1]); continue; }
       if (e.k !== 'm' || e.state === 'dead') continue;
       if (e.state === 'idle' && !players.some((p) => Math.hypot(p.x - e.x, p.y - e.y) < 50)) continue;
       const st = e.state === 'windup' || e.state === 'slam' ? 2 : e.stunUntil > this.time ? 3 : e.state === 'idle' ? 0 : 1;

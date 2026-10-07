@@ -123,6 +123,44 @@ export class FX {
     this.emit(x, 0.3, z, 60, { color, speed: 2, up: 6, size: 0.3, life: 1.2, gravity: -1 });
   }
 
+  // A glowing disc on the ground that lasts `dur` seconds (Acid Pool, Entangle, Rejuvenation).
+  pool(x, z, r, color, dur, { opacity = 0.45, pulse = true } = {}) {
+    const g = new THREE.Group();
+    const fill = new THREE.Mesh(new THREE.CircleGeometry(r, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    const edge = new THREE.Mesh(new THREE.RingGeometry(r - 0.14, r, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: Math.min(1, opacity * 1.8), depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    for (const m of [fill, edge]) { m.rotation.x = -Math.PI / 2; g.add(m); }
+    g.position.set(x, 0.06, z);
+    this.scene.add(g);
+    this.items.push({ obj: g, t: 0, dur, kind: 'pool', fill, edge, base: opacity, pulse });
+  }
+
+  // Thorny roots that burst up and hold for `dur` seconds.
+  roots(x, z, r, dur) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4a6a2a, roughness: 0.9 });
+    const n = Math.round(10 + r * 5);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2; const d = Math.sqrt(Math.random()) * r;
+      const h = 0.5 + Math.random() * 0.8;
+      const m = new THREE.Mesh(new THREE.ConeGeometry(0.06 + Math.random() * 0.05, h, 5), mat);
+      m.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d);
+      m.rotation.set((Math.random() - 0.5) * 0.9, 0, (Math.random() - 0.5) * 0.9);
+      g.add(m);
+    }
+    g.position.set(x, 0, z); g.scale.y = 0.01;
+    this.scene.add(g);
+    this.items.push({ obj: g, t: 0, dur, kind: 'roots' });
+    this.pool(x, z, r, 0x3a8a2a, dur, { opacity: 0.25 });
+  }
+
+  // A shimmering bubble that follows an object until removed.
+  bubble(target, color = 0x8a6aff) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.95, 20, 14), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    m.position.y = 1.0; m.scale.set(1, 1.15, 1);
+    target.add(m);
+    return m;
+  }
+
   number(x, y, z, text, cls) {
     const el = document.createElement('div');
     el.className = `dmg ${cls || ''}`;
@@ -152,6 +190,12 @@ export class FX {
       if (it.kind === 'trail') it.obj.material.uniforms.fade.value = 1 - k;
       if (it.kind === 'tell') { it.fill.scale.setScalar(Math.min(1, k)); it.fill.material.opacity = 0.15 + k * 0.3; }
       if (it.kind === 'wave') { it.obj.scale.setScalar(1 + k * it.r); it.obj.material.opacity = 0.8 * (1 - k); }
+      if (it.kind === 'pool') {
+        const fade = Math.min(1, it.t / 0.2) * Math.min(1, (it.dur - it.t) / 0.4);
+        const pul = it.pulse ? 0.85 + Math.sin(it.t * 6) * 0.15 : 1;
+        it.fill.material.opacity = it.base * fade * pul; it.edge.material.opacity = Math.min(1, it.base * 1.8) * fade;
+      }
+      if (it.kind === 'roots') { const up = Math.min(1, it.t / 0.15); const down = Math.min(1, (it.dur - it.t) / 0.3); it.obj.scale.y = Math.max(0.01, Math.min(up, down)); }
       if (it.kind === 'pillar') { it.obj.material.opacity = 0.5 * (1 - k); it.obj.scale.set(1 - k * 0.5, 1, 1 - k * 0.5); }
       if (k >= 1) { this.scene.remove(it.obj); it.obj.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } }); this.items.splice(i, 1); }
     }
@@ -185,6 +229,21 @@ export function projectileMesh(kind) {
     shaft.rotation.x = Math.PI / 2; g.add(shaft);
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), flat(0x9a9a9a, { metal: 0.6 }));
     tip.rotation.x = Math.PI / 2; tip.position.z = 0.4; g.add(tip);
+  } else if (kind === 'bolt') {
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), glow(0xd0b0ff)));
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTexture(), color: 0x8a5aff, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    halo.scale.setScalar(0.8); g.add(halo);
+  } else if (kind === 'flask') {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff7a30, emissive: 0xff4a10, emissiveIntensity: 0.9, transparent: true, opacity: 0.9 }));
+    g.add(b);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 6), new THREE.MeshStandardMaterial({ color: 0xc8d8e0, roughness: 0.2 }));
+    neck.position.y = 0.15; g.add(neck);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTexture(), color: 0xff6020, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    halo.scale.setScalar(0.7); g.add(halo);
+    g.userData.spin = 9;
+  } else if (kind === 'thorn') {
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.42, 5), new THREE.MeshStandardMaterial({ color: 0x6a9a3a, emissive: 0x2a5a10, emissiveIntensity: 0.6, roughness: 0.7 }));
+    t.rotation.x = Math.PI / 2; g.add(t);
   } else {
     g.add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), glow(0xffd070)));
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTexture(), color: 0xff6020, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));

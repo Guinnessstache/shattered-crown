@@ -344,6 +344,222 @@ def build_ogre():
     J['root'].scale = (2.1, 2.1, 2.1)  # boss size
     return J['root']
 
+
+# ---------------------------------------------------------------- shared hero bits
+def hero_head(J, skin, hair, beard=True, hairstyle='short'):
+    H = J['head']
+    dark = mat('visor', 0x050505, 0.0, 1.0)
+    cyl('neck', H, skin, 0.06, 0.065, 0.1, loc=(0, 0, 0.08), seg=8)
+    sphere('face', H, skin, 0.125, loc=(0, -0.01, 0.17), scale=(0.88, 0.95, 1.08), seg=14, rings=10, sub=1)
+    sphere('nose', H, skin, 0.025, loc=(0, -0.13, 0.17), scale=(0.8, 1, 1.3), seg=6, rings=4)
+    for sx in (-1, 1):
+        sphere('eye', H, dark, 0.014, loc=(sx * 0.042, -0.112, 0.19), seg=6, rings=4)
+    if beard: sphere('beard', H, hair, 0.1, loc=(0, -0.05, 0.09), scale=(1.0, 0.8, 0.75), seg=10, rings=6)
+    g = joint('hair', H, (0, 0, 0))
+    if hairstyle == 'mohawk':
+        box('crest', g, hair, (0.05, 0.26, 0.1), loc=(0, 0.02, 0.3), bevel=0.02)
+        sphere('scalp', g, hair, 0.128, loc=(0, 0.01, 0.19), scale=(1, 1.02, 0.85), cut=0.1, seg=14, rings=8)
+        cyl('braid', g, hair, 0.03, 0.02, 0.22, loc=(0, 0.13, 0.22), rot=(0.3, 0, 0), seg=6)
+    elif hairstyle == 'long':
+        sphere('scalp', g, hair, 0.135, loc=(0, 0.01, 0.2), scale=(1, 1.02, 0.9), cut=-0.05, seg=14, rings=8)
+        box('mane', g, hair, (0.24, 0.07, 0.28), loc=(0, 0.1, 0.08), rot=(0.15, 0, 0), bevel=0.03, smooth=True)
+    else:
+        sphere('scalp', g, hair, 0.135, loc=(0, 0.01, 0.2), scale=(1, 1.02, 0.9), cut=-0.05, seg=14, rings=8)
+    return H
+
+def hero_limbs(J, upper, fore, hand, thigh, shin, boot, ua_r=0.068, leg_r=0.09):
+    d = J['d']
+    for side, A, F, H in ((1, J['armL'], J['foreL'], J['handL']), (-1, J['armR'], J['foreR'], J['handR'])):
+        cyl('upperarm', A, upper, ua_r, ua_r - 0.008, d['ua'], seg=10)
+        sphere('elbow', F, upper, ua_r - 0.004, seg=10, rings=6)
+        cyl('forearm', F, fore, ua_r - 0.006, ua_r - 0.016, d['fa'] - 0.02, seg=10)
+        box('hand', H, hand, (0.085, 0.095, 0.1), loc=(0, 0, -0.03), bevel=0.02)
+        box('fingers', H, hand, (0.08, 0.085, 0.06), loc=(0, -0.01, -0.1), rot=(0.3, 0, 0), bevel=0.012)
+    for side, L, S in ((1, J['legL'], J['shinL']), (-1, J['legR'], J['shinR'])):
+        cyl('thigh', L, thigh, leg_r, leg_r - 0.015, d['thigh'], seg=10)
+        sphere('knee', S, thigh, leg_r - 0.017, seg=10, rings=6)
+        cyl('shin', S, shin, leg_r - 0.02, leg_r - 0.03, d['shin'] - 0.06, seg=10)
+        box('boot', S, boot, (0.12, 0.24, 0.1), loc=(0, -0.05, -d['shin'] + 0.03), bevel=0.025)
+
+def spoke(name, parent, m, r1, r2, length, start, direction, seg=8):
+    # A tapered rod from `start` along `direction` (r1 at the start, r2 at the far end). Returns the end point.
+    dv = Vector(direction).normalized()
+    rot = Vector((0, 0, -1)).rotation_difference(dv).to_euler()
+    cyl(name, parent, m, r1, r2, length, loc=start, rot=tuple(rot), seg=seg)
+    return tuple(Vector(start) + dv * length)
+
+def helms(H, build):
+    for t in range(6):
+        g = joint(f'helm_t{t}', H, (0, 0, 0))
+        build(t, g)
+
+# ---------------------------------------------------------------- the berserker
+def build_berserker():
+    J = humanoid('hero_berserker', sh=0.29, ua=0.33, fa=0.31)
+    d = J['d']
+    skin = mat('skin', 0xc89070, 0.0, 0.6)
+    hair = mat('hairmat', 0x8a3a18, 0.0, 0.9)
+    leather = mat('leather', 0x4a2e1a, 0.0, 0.8)
+    fur = mat('fur', 0x5a4a3a, 0.0, 1.0)
+    armor = mat('armor', 0x8a8c90, 0.75, 0.45)
+    trim = mat('trim', 0xb08a40, 0.85, 0.35)
+    cloth = mat('cloth', 0x6a1a14, 0.0, 0.9)
+    paint = mat('warpaint', 0x2a4a9a, 0.0, 0.8)
+    T = J['torso']
+    # Bare, broad torso with straps
+    lathe('chest', T, skin, [(0.14, 0.1), (0.21, 0.16), (0.25, 0.3), (0.27, 0.44), (0.24, 0.56), (0.16, 0.62), (0.08, 0.64)], scale=(1, 0.74, 1), seg=16, sub=1)
+    for sx in (-1, 1):
+        box('strap', T, leather, (0.05, 0.03, 0.62), loc=(sx * 0.08, -0.15, 0.36), rot=(0.1, sx * 0.55, 0), bevel=0.006)
+        sphere('pec', T, skin, 0.09, loc=(sx * 0.09, -0.15, 0.45), scale=(1.1, 0.5, 0.75), seg=10, rings=6)
+        box('paint', T, paint, (0.12, 0.01, 0.03), loc=(sx * 0.1, -0.185, 0.3), rot=(0, 0, sx * 0.4), bevel=0)
+    box('beltplate', T, trim, (0.12, 0.02, 0.08), loc=(0, -0.18, 0.1), bevel=0.006)
+    lathe('belt', T, leather, [(0.225, 0.05), (0.23, 0.15)], scale=(1, 0.78, 1), seg=14)
+    # Fur mantle over the shoulders and a heavy kilt
+    lathe('mantle', T, fur, [(0.1, 0.66), (0.22, 0.62), (0.32, 0.54), (0.3, 0.46)], scale=(1, 0.8, 1), seg=16, sub=1)
+    for nm, y in (('kilt', -0.17), ('kiltB', 0.165)):
+        extrude_shape(nm, T, cloth, [(-0.2, 0.08), (0.2, 0.08), (0.23, -0.3), (0.08, -0.36), (-0.08, -0.33), (-0.23, -0.3)], 0.02, loc=(0, y, 0), rot=(0.08 if y < 0 else -0.08, 0, 0))
+    lathe('kiltwrap', T, leather, [(0.23, 0.08), (0.25, -0.1)], scale=(1, 0.8, 1), seg=14)
+    # Arms: bare upper arms, armored bracers (tier-colored), spiked pauldron on the left
+    hero_limbs(J, skin, armor, leather, cloth, leather, fur, ua_r=0.078, leg_r=0.095)
+    A = J['armL']
+    sphere('pauldron', A, armor, 0.15, loc=(0.04, 0, 0.02), scale=(1.15, 1.05, 0.8), cut=-0.1, seg=14, rings=8)
+    for i in range(3):
+        cyl('spike', A, trim, 0.0, 0.03, 0.12, loc=(0.06 + i * 0.03, -0.04 + i * 0.04, 0.16), rot=(math.pi, 0.3, 0), seg=6)
+    for F in (J['foreL'], J['foreR']):
+        lathe('cuffband', F, trim, [(0.072, -0.06), (0.075, -0.03)], seg=10)
+    H = hero_head(J, skin, hair, beard=True, hairstyle='mohawk')
+    sphere('braidbeard', H, hair, 0.05, loc=(0, -0.09, 0.0), scale=(0.7, 0.7, 1.6), seg=8, rings=6)
+    def build(t, g):
+        if t == 0:
+            lathe('band', g, leather, [(0.14, 0.2), (0.142, 0.24)], seg=14)
+            return
+        lathe('helm', g, armor, [(0.155, 0.14), (0.16, 0.22), (0.135, 0.31), (0.07, 0.355), (0.0, 0.365)], seg=16)
+        lathe('rim', g, trim, [(0.162, 0.14), (0.165, 0.17)], seg=16)
+        hr = 0.1 + 0.025 * t
+        bone = mat('bone', 0xe0d4b8, 0, 0.6)
+        for sx in (-1, 1):
+            p = spoke('horn', g, bone, 0.045, 0.03, hr, (sx * 0.13, 0.0, 0.27), (sx * 1.0, 0, 0.25))
+            p = spoke('horn', g, bone, 0.03, 0.018, hr, p, (sx * 0.5, -0.1, 1.0))
+            spoke('horntip', g, bone, 0.018, 0.0, hr * 0.8, p, (-sx * 0.2, -0.2, 1.0))
+        if t >= 3:
+            box('faceguard', g, armor, (0.2, 0.03, 0.12), loc=(0, -0.155, 0.12), bevel=0.01)
+            box('nasal', g, trim, (0.03, 0.03, 0.14), loc=(0, -0.165, 0.2), bevel=0.006)
+        if t >= 5:
+            lathe('crown', g, trim, [(0.168, 0.22), (0.17, 0.26)], seg=16)
+    helms(H, build)
+    extrude_shape('cape', T, mat('capemat', 0x3a2a1e, 0, 1.0), [(-0.24, 0.6), (0.24, 0.6), (0.3, -0.25), (0.1, -0.33), (-0.1, -0.3), (-0.3, -0.25)], 0.014, loc=(0, 0.22, 0), rot=(-0.12, 0, 0))
+    return J['root']
+
+# ---------------------------------------------------------------- the alchemist
+def build_alchemist():
+    J = humanoid('hero_alchemist', sh=0.25, ua=0.31, fa=0.29)
+    skin = mat('skin', 0xe0b498, 0.0, 0.65)
+    hair = mat('hairmat', 0x2a2a30, 0.0, 0.9)
+    robe = mat('cloth', 0x3a3a7a, 0.0, 0.9)
+    leather = mat('leather', 0x5a3a22, 0.0, 0.8)
+    armor = mat('armor', 0x9a9ca4, 0.7, 0.4)
+    trim = mat('trim', 0xc8a050, 0.85, 0.3)
+    glassG = mat('potionG', 0x5aff5a, 0.0, 0.2, emit=0x2aff2a)
+    glassO = mat('potionO', 0xff8a30, 0.0, 0.2, emit=0xff6a10)
+    glassB = mat('potionB', 0x5ab0ff, 0.0, 0.2, emit=0x3a8aff)
+    lens = mat('lens', 0x8affff, 0.2, 0.1, emit=0x2a9aaa)
+    T = J['torso']
+    lathe('chest', T, robe, [(0.12, 0.1), (0.18, 0.16), (0.21, 0.3), (0.22, 0.44), (0.2, 0.56), (0.14, 0.62), (0.08, 0.64)], scale=(1, 0.75, 1), seg=16, sub=1)
+    # Long robe skirt, split at the front
+    lathe('robeskirt', T, robe, [(0.21, 0.12), (0.23, -0.05), (0.27, -0.35), (0.31, -0.62)], scale=(1, 0.85, 1), seg=18, angle=math.tau * 0.86, rot=(0, 0, -math.pi / 2 + math.tau * 0.07))
+    # Leather apron with a tier-colored buckle plate
+    extrude_shape('apron', T, leather, [(-0.13, 0.45), (0.13, 0.45), (0.15, -0.3), (-0.15, -0.3)], 0.015, loc=(0, -0.17, 0), rot=(0.06, 0, 0))
+    lathe('belt', T, leather, [(0.215, 0.06), (0.22, 0.12)], scale=(1, 0.78, 1), seg=14)
+    box('buckle', T, armor, (0.07, 0.02, 0.06), loc=(0, -0.185, 0.09), bevel=0.005)
+    # Vials hanging from the belt
+    for i, (gm, x) in enumerate(((glassG, -0.17), (glassO, 0.15), (glassB, 0.2))):
+        a = math.atan2(x, -0.15)
+        px, py = math.sin(a) * 0.22, -math.cos(a) * 0.18
+        cyl('vial', T, gm, 0.03, 0.035, 0.1, loc=(px, py, 0.06), seg=8)
+        cyl('cork', T, leather, 0.015, 0.015, 0.03, loc=(px, py, 0.09), seg=6)
+    # Mantle with a high collar
+    lathe('mantle', T, robe, [(0.09, 0.68), (0.18, 0.62), (0.27, 0.53), (0.26, 0.45)], scale=(1, 0.82, 1), seg=16, sub=1)
+    lathe('collar', T, trim, [(0.1, 0.62), (0.12, 0.72)], scale=(1, 0.9, 1), seg=14, angle=math.pi * 1.4, rot=(0, 0, math.pi * 0.3))
+    for side, A in ((1, J['armL']), (-1, J['armR'])):
+        sphere('pauldron', A, armor, 0.11, loc=(side * 0.03, 0, 0.02), scale=(1.1, 1.0, 0.7), cut=-0.05, seg=12, rings=8)
+    hero_limbs(J, robe, robe, leather, robe, leather, leather, ua_r=0.066, leg_r=0.085)
+    for F in (J['foreL'], J['foreR']):
+        lathe('sleeve', F, robe, [(0.07, -0.12), (0.1, -0.26)], seg=10)
+    H = hero_head(J, skin, hair, beard=False)
+    sphere('goatee', H, hair, 0.035, loc=(0, -0.1, 0.07), scale=(0.8, 0.7, 1.3), seg=8, rings=6)
+    def build(t, g):
+        if t <= 1:
+            lathe('strap', g, leather, [(0.138, 0.22), (0.14, 0.25)], seg=14)
+            for sx in (-1, 1):
+                cyl('goggle', g, armor if t else leather, 0.035, 0.035, 0.035, loc=(sx * 0.045, -0.12, 0.255), rot=(math.pi / 2, 0, 0), seg=10)
+                cyl('lens', g, lens, 0.026, 0.026, 0.006, loc=(sx * 0.045, -0.155, 0.255), rot=(math.pi / 2, 0, 0), seg=10)
+            return
+        # Deep hood, with a tier-colored circlet and gem higher up
+        sphere('hood', g, robe, 0.17, loc=(0, 0.075, 0.21), scale=(1.02, 1.0, 1.08), cut=-0.45, seg=16, rings=10)
+        cyl('hoodtip', g, robe, 0.06, 0.0, 0.16, loc=(0, 0.17, 0.33), rot=(-1.9, 0, 0), seg=8)
+        if t >= 3:
+            lathe('circlet', g, armor, [(0.152, 0.25), (0.155, 0.275)], seg=16)
+            sphere('gem', g, glassB if t < 5 else glassO, 0.025, loc=(0, -0.15, 0.27), seg=8, rings=6)
+    helms(H, build)
+    extrude_shape('cape', T, mat('capemat', 0x2a2a5a, 0, 0.95), [(-0.2, 0.6), (0.2, 0.6), (0.28, -0.6), (0, -0.66), (-0.28, -0.6)], 0.012, loc=(0, 0.2, 0), rot=(-0.1, 0, 0))
+    return J['root']
+
+# ---------------------------------------------------------------- the druid
+def build_druid():
+    J = humanoid('hero_druid', sh=0.26, ua=0.32, fa=0.3)
+    skin = mat('skin', 0xd0a080, 0.0, 0.65)
+    hair = mat('hairmat', 0xb8b0a0, 0.0, 0.9)
+    robe = mat('cloth', 0x3a5a2a, 0.0, 0.9)
+    leather = mat('leather', 0x5a3a22, 0.0, 0.8)
+    bark = mat('wood', 0x5a4028, 0.0, 0.95)
+    armor = mat('armor', 0x8a8a7a, 0.6, 0.5)
+    trim = mat('trim', 0xa08a40, 0.8, 0.35)
+    leaf = mat('leaf', 0x4a8a2a, 0.0, 0.8)
+    moss = mat('moss', 0x6a9a3a, 0.0, 1.0)
+    antler = mat('bone', 0xd8ccb0, 0.0, 0.6)
+    glowG = mat('spiritglow', 0x9aff6a, 0.0, 0.3, emit=0x6aff3a)
+    T = J['torso']
+    lathe('chest', T, leather, [(0.13, 0.1), (0.19, 0.16), (0.22, 0.3), (0.235, 0.44), (0.21, 0.56), (0.15, 0.62), (0.08, 0.64)], scale=(1, 0.75, 1), seg=16, sub=1)
+    # Robe: a sash across the chest and a long split skirt
+    box('sash', T, robe, (0.07, 0.03, 0.6), loc=(0, -0.16, 0.36), rot=(0.1, 0.6, 0), bevel=0.008)
+    lathe('robeskirt', T, robe, [(0.22, 0.12), (0.24, -0.05), (0.28, -0.3), (0.32, -0.55)], scale=(1, 0.85, 1), seg=18, angle=math.tau * 0.84, rot=(0, 0, -math.pi / 2 + math.tau * 0.08))
+    lathe('belt', T, bark, [(0.22, 0.06), (0.228, 0.13)], scale=(1, 0.78, 1), seg=14)
+    sphere('beltstone', T, glowG, 0.03, loc=(0, -0.185, 0.095), seg=8, rings=6)
+    # Bark pauldrons with moss, and a leaf mantle
+    for side, A in ((1, J['armL']), (-1, J['armR'])):
+        sphere('pauldron', A, bark, 0.13, loc=(side * 0.03, 0, 0.02), scale=(1.15, 1.05, 0.8), cut=-0.1, seg=12, rings=8)
+        sphere('moss', A, moss, 0.09, loc=(side * 0.05, 0, 0.09), scale=(1.1, 1, 0.4), cut=0.0, seg=10, rings=6)
+        box('pauldtrim', A, armor, (0.2, 0.02, 0.03), loc=(side * 0.03, -0.11, 0.0), bevel=0.005)
+    for i in range(10):
+        a = (i / 10) * math.tau
+        box('leafm', T, leaf, (0.09, 0.012, 0.13), loc=(math.cos(a) * 0.2, math.sin(a) * 0.16, 0.58), rot=(math.sin(a) * 0.9, -math.cos(a) * 0.9, a), bevel=0)
+    hero_limbs(J, robe, leather, leather, robe, leather, bark, ua_r=0.068, leg_r=0.088)
+    for F in (J['foreL'], J['foreR']):
+        lathe('wrap', F, armor, [(0.064, -0.1), (0.066, -0.18)], seg=10)
+    H = hero_head(J, skin, hair, beard=True, hairstyle='long')
+    def build(t, g):
+        if t <= 1:
+            lathe('circlet', g, bark if t == 0 else armor, [(0.14, 0.24), (0.143, 0.262)], seg=14)
+            for i in range(5):
+                a = -0.9 + i * 0.45
+                box('leaf', g, leaf, (0.05, 0.01, 0.07), loc=(math.sin(a) * 0.145, -math.cos(a) * 0.145, 0.27), rot=(0.3, 0, a), bevel=0)
+            return
+        sphere('hood', g, robe, 0.168, loc=(0, 0.075, 0.21), scale=(1.02, 1.0, 1.05), cut=-0.45, seg=16, rings=10)
+        size = 0.14 + 0.035 * t
+        for sx in (-1, 1):
+            base = (sx * 0.09, 0.0, 0.33)
+            dirn = (sx * 0.55, 0.05, 1.0)
+            tip = spoke('antler', g, antler, 0.022, 0.012, size, base, dirn, seg=6)
+            for k in range(1 + t // 2):
+                f = 0.4 + 0.22 * k
+                bp = tuple(base[i] + (tip[i] - base[i]) * f for i in range(3))
+                spoke('tine', g, antler, 0.012, 0.0, 0.08 + 0.01 * t, bp, (sx * 0.9, -0.3 if k % 2 else 0.3, 0.6), seg=5)
+        if t >= 4:
+            sphere('spirit', g, glowG, 0.025, loc=(0, -0.16, 0.26), seg=8, rings=6)
+    helms(H, build)
+    extrude_shape('cape', T, mat('capemat', 0x2a4a1e, 0, 0.95), [(-0.22, 0.6), (0.22, 0.6), (0.3, -0.5), (0.1, -0.58), (-0.1, -0.55), (-0.3, -0.5)], 0.012, loc=(0, 0.2, 0), rot=(-0.1, 0, 0))
+    return J['root']
+
 # ---------------------------------------------------------------- export
 def export(root, name):
     bpy.ops.object.select_all(action='DESELECT')
@@ -359,6 +575,9 @@ def export(root, name):
 
 BUILDERS = {
     'hero_knight': (build_knight, 'humanoid', 1.95),
+    'hero_berserker': (build_berserker, 'humanoid', 1.95),
+    'hero_alchemist': (build_alchemist, 'humanoid', 1.9),
+    'hero_druid': (build_druid, 'humanoid', 1.95),
     'skeleton': (build_skeleton, 'humanoid', 1.9),
     'goblin': (build_goblin, 'humanoid', 1.3),
     'ogre': (build_ogre, 'humanoid', 4.2),

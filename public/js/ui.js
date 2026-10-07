@@ -69,6 +69,15 @@ export class UI {
     this.touchSkills.forEach((b, i) => { b.innerHTML = `${SKILLS[['cleave', 'bash', 'charge', 'warcry'][i]].icon}<i class="cd"></i>`; });
   }
 
+  // Point the skill bar (and touch buttons) at this hero's class skills.
+  setClassSkills(ids) {
+    this.skillEls.forEach((s, i) => {
+      const sk = SKILLS[ids[i]]; if (!sk) return;
+      s.id = ids[i]; s.el.title = sk.name; s.el.querySelector('span').textContent = sk.icon;
+    });
+    this.touchSkills.forEach((b, i) => { const sk = SKILLS[ids[i]]; if (sk) b.innerHTML = `${sk.icon}<i class="cd"></i>`; });
+  }
+
   setSource(src) {
     this.source = src;
     document.body.classList.toggle('pad-on', src === 'pad');
