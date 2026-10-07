@@ -9,6 +9,7 @@ import { Sfx } from './audio.js';
 import { Music } from './music.js';
 import { Voice } from './voice.js';
 import { Game } from './game.js';
+import { AdminConsole } from './admin.js';
 import { generateTown } from '/shared/map.js';
 import { CLASSES, newCharacter } from '/shared/rules.js';
 
@@ -40,7 +41,10 @@ const ui = new UI({
   skill: (i) => game?.useSkill(i),
   potion: (k) => game?.potion(k),
   gate: (floor) => socket.emit('gate', { floor }, (r) => { if (!r?.ok) ui.msg(r?.error, 'warn'); }),
-  chat: (text) => socket.emit('chat', { text }),
+  chat: (text) => {
+    if (/^\/(console|admin)\b/i.test(text)) { admin.open(); return; }
+    socket.emit('chat', { text });
+  },
   sfx: (n) => sfx.play(n),
   ah: (d) => new Promise((res) => socket.emit('ah', d, (r) => res(r || { error: 'No reply from server' }))),
   leave: () => leaveGame(),
@@ -60,6 +64,7 @@ const input = new Input(world.renderer.domElement, {
   onMenuScroll: (dy) => ui.padScroll(dy, game && ui.anyOpen() ? ui.openPanelEl() : titleRoot()),
   onSource: (s) => { ui.setSource(s); ui.controlsHelp(s); if (s === 'touch' && !touchOn) setTouch(true); if (s === 'pad' && !game) setTimeout(() => focusTitle(), 0); },
 });
+const admin = new AdminConsole({ ui, socket: () => socket });
 input.bindTouch($('#touch'));
 let touchOn = store.get('touch', coarse ? '1' : '0') === '1';
 function setTouch(on) { touchOn = on; ui.setTouch(on); $('#touch-toggle').checked = on; store.set('touch', on ? '1' : '0'); }
@@ -155,10 +160,12 @@ function connect() {
   socket = io({ auth: { token: store.get('token') }, transports: ['websocket', 'polling'] });
   socket.on('connect_error', (err) => {
     if (err.message === 'auth') { store.del('token'); socket.disconnect(); showAuth(); }
+    else if (err.message === 'banned') { store.del('token'); socket.disconnect(); showAuth(); $('#auth-error').textContent = 'This account has been banned.'; }
     else { $('#select-error').textContent = 'Can\'t reach the server — retrying…'; }
   });
   socket.on('connect', () => { $('#select-error').textContent = ''; if (!game) loadChars(); });
   socket.on('kicked', (d) => { alert(d.reason); });
+  socket.on('announce', (d) => { ui.chatLine('', `📣 ${d.text}`, true); ui.center(d.text, 5000); });
   socket.on('disconnect', () => {
     if (game) { ui.msg('Connection lost — reconnecting…', 'warn'); }
   });

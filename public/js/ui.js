@@ -250,7 +250,7 @@ export class UI {
   // ------------------------------------------------------------ panels
   anyOpen() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').some((m) => m.id !== 'create-modal'); }
   closePanels() {
-    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite']) $(`#${id}`).classList.add('hidden');
+    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite', 'admin-panel']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
     this.h.panelsChanged?.(false);

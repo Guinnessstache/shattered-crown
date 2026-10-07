@@ -60,6 +60,20 @@ For testing in the browser, start with `DEV_CMDS=1 npm start` and use the consol
 | Character | I | View | 🎒 |
 | Map | Tab | R3 | Tap the minimap |
 
+## Admin console
+
+Type `/console` (or `/admin`) in chat while playing, then enter the admin password. The console stays unlocked until you press **Lock** or disconnect.
+
+- **Turn it on:** set the environment variable `ADMIN_PASSWORD` to at least 8 characters. On Render: Dashboard → your service → Environment → Add `ADMIN_PASSWORD`. Without it the console is off.
+- **Online:** everyone playing, their level, floor and party. Click a player to open their account.
+- **Accounts:** search by username, email, hero name or `#id`. From an account you can:
+  - reset the password (type one, or leave it blank to get a random one to send them);
+  - kick or ban/unban the account (a ban disconnects them and blocks sign-in);
+  - give gold, XP or levels to any of their heroes that are online.
+- **Announce:** sends a message to every player online.
+
+Wrong passwords are limited to 5 tries per 10 minutes per IP. Every admin action is written to the server log (`[admin] …`).
+
 ## Project layout
 
 ```

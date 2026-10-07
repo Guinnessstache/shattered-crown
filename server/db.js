@@ -47,6 +47,7 @@ class PgStore {
         updated TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS characters_account ON characters(account_id);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS banned BOOLEAN NOT NULL DEFAULT false;
       CREATE TABLE IF NOT EXISTS auctions (
         id SERIAL PRIMARY KEY,
         seller_char INTEGER NOT NULL,
@@ -70,6 +71,15 @@ class PgStore {
   async createAccount({ username, pass = null, googleSub = null, email = null }) {
     return (await this.q('INSERT INTO accounts (username, pass, google_sub, email) VALUES ($1,$2,$3,$4) RETURNING *', [username?.toLowerCase() || null, pass, googleSub, email]))[0];
   }
+  // ---- admin console
+  async searchAccounts(q, limit = 30) {
+    if (/^#?\d+$/.test(q)) return this.q('SELECT * FROM accounts WHERE id = $1', [Number(q.replace('#', ''))]);
+    const like = `%${q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    return this.q(`SELECT DISTINCT a.* FROM accounts a LEFT JOIN characters c ON c.account_id = a.id
+      WHERE $1 = '%%' OR a.username LIKE $1 OR lower(a.email) LIKE $1 OR lower(c.name) LIKE $1 ORDER BY a.id DESC LIMIT $2`, [like, limit]);
+  }
+  async setPassword(id, pass) { await this.q('UPDATE accounts SET pass = $2 WHERE id = $1', [id, pass]); }
+  async setBanned(id, banned) { await this.q('UPDATE accounts SET banned = $2 WHERE id = $1', [id, !!banned]); }
   async linkGoogle(id, sub, email) { await this.q('UPDATE accounts SET google_sub = $2, email = COALESCE(email, $3) WHERE id = $1', [id, sub, email]); }
   async listCharacters(aid) {
     return (await this.q('SELECT id, name, cls, level, updated, data FROM characters WHERE account_id = $1 ORDER BY updated DESC', [aid]))
@@ -145,6 +155,16 @@ class FileStore {
     const a = { id: this.id(), username: username?.toLowerCase() || null, pass, google_sub: googleSub, email, created: new Date().toISOString() };
     this.d.accounts.push(a); await this.flush(); return a;
   }
+  // ---- admin console
+  async searchAccounts(q, limit = 30) {
+    if (/^#?\d+$/.test(q)) return this.d.accounts.filter((a) => a.id === Number(q.replace('#', '')));
+    const t = q.toLowerCase();
+    const has = (v) => !!v && String(v).toLowerCase().includes(t);
+    return this.d.accounts.filter((a) => !t || has(a.username) || has(a.email) || this.d.characters.some((c) => c.account_id === a.id && has(c.data.name)))
+      .sort((a, b) => b.id - a.id).slice(0, limit);
+  }
+  async setPassword(id, pass) { const a = await this.getAccount(id); if (a) { a.pass = pass; await this.flush(); } }
+  async setBanned(id, banned) { const a = await this.getAccount(id); if (a) { a.banned = !!banned; await this.flush(); } }
   async linkGoogle(id, sub, email) { const a = await this.getAccount(id); if (a) { a.google_sub = sub; a.email ||= email; await this.flush(); } }
   async listCharacters(aid) {
     return this.d.characters.filter((c) => c.account_id === aid).sort((a, b) => (b.updated > a.updated ? 1 : -1))

@@ -9,6 +9,7 @@ import { auctionAction, setOnlineLookup } from './auction.js';
 import { makeItem } from '../shared/rules.js';
 import { RNG } from '../shared/rng.js';
 import { duelAction } from './duel.js';
+import { adminHandler } from './admin.js';
 import { loadSecret, hashPassword, checkPassword, signToken, verifyToken, validUsername, validPassword, verifyGoogleToken, rateLimited } from './auth.js';
 import { Party, Member, parties } from './party.js';
 import { newCharacter, validName, CLASSES, xpToNext, derive, GAME_TITLE } from '../shared/rules.js';
@@ -62,6 +63,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
     const { username, password } = req.body || {};
     const acct = typeof username === 'string' ? await db.findAccountByUsername(username) : null;
     if (!acct || !acct.pass || !(await checkPassword(String(password || ''), acct.pass))) return fail(res, 401, 'Wrong username or password');
+    if (acct.banned) return fail(res, 403, 'This account has been banned');
     res.json(session(acct));
   });
 
@@ -74,6 +76,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       const linkTo = verifyToken(secret, req.body?.linkToken);
       if (!acct && linkTo) { await db.linkGoogle(linkTo, g.sub, g.email); acct = await db.getAccount(linkTo); }
       if (!acct) acct = await db.createAccount({ username: null, googleSub: g.sub, email: g.email });
+      if (acct.banned) return fail(res, 403, 'This account has been banned');
       res.json(session(acct));
     } catch (e) { fail(res, 401, e.message); }
   });
@@ -83,9 +86,10 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
   const online = new Map(); // `${accountId}:${charId}` -> socket (one session per character)
   let pidSeq = 1;
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const id = verifyToken(secret, socket.handshake.auth?.token);
     if (!id) return next(new Error('auth'));
+    try { if ((await db.getAccount(id))?.banned) return next(new Error('banned')); } catch { /* db hiccup: let them in */ }
     socket.data.accountId = id;
     next();
   });
@@ -189,6 +193,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       if (text) member.party.broadcast('chat', { pid: member.pid, name: member.char.name, text });
       return null;
     }));
+    socket.on('admin', adminHandler({ io, db, socket }));
     socket.on('media', inParty((d) => { member.media = { mic: !!d.mic }; member.party.sendRoster(); return null; }));
     socket.on('rtc', inParty((d) => {
       const to = member.party.members.get(String(d.to));

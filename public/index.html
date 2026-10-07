@@ -320,6 +320,43 @@
     </div>
   </div>
 
+  <!-- Admin console (type /console in chat) -->
+  <div id="admin-panel" class="sheet hidden">
+    <div class="sheet-inner panel admin">
+      <header>
+        <h2>Admin console</h2>
+        <div class="adm-head-btns"><button id="adm-logout" class="btn small ghost hidden" type="button">Lock</button><button class="btn small ghost" data-close type="button">✕</button></div>
+      </header>
+      <div id="adm-login">
+        <p class="muted">Enter the admin password to unlock the console for this session.</p>
+        <label class="field"><span>Admin password</span><input id="adm-pass" type="password" autocomplete="off" /></label>
+        <div class="row-end"><button id="adm-login-btn" class="btn gold" type="button">Unlock</button></div>
+        <p id="adm-login-err" class="error"></p>
+      </div>
+      <div id="adm-main" class="hidden">
+        <div class="tabs">
+          <button class="tab active" data-adm-tab="online" type="button">Online</button>
+          <button class="tab" data-adm-tab="accounts" type="button">Accounts</button>
+          <button class="tab" data-adm-tab="announce" type="button">Announce</button>
+        </div>
+        <div data-adm-body="online">
+          <div class="adm-line"><span id="adm-online-count" class="muted"></span><button id="adm-refresh" class="btn small" type="button">Refresh</button></div>
+          <div id="adm-online" class="adm-list"></div>
+        </div>
+        <div data-adm-body="accounts" class="hidden">
+          <div class="adm-line"><input id="adm-search" type="text" placeholder="Username, email, hero name or #id (blank = newest)" autocomplete="off" /><button id="adm-search-btn" class="btn small gold" type="button">Search</button></div>
+          <div id="adm-results" class="adm-list"></div>
+        </div>
+        <div data-adm-body="account" class="hidden"><div id="adm-account"></div></div>
+        <div data-adm-body="announce" class="hidden">
+          <p class="muted">Shows a message to every player online.</p>
+          <div class="adm-line"><input id="adm-announce" type="text" maxlength="200" placeholder="e.g. Server restarting in 5 minutes" autocomplete="off" /><button id="adm-announce-btn" class="btn small gold" type="button">Send</button></div>
+        </div>
+      </div>
+      <p id="adm-status" class="adm-status"></p>
+    </div>
+  </div>
+
   <!-- Menu -->
   <div id="menu-panel" class="modal hidden">
     <div class="panel">
