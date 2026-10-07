@@ -57,6 +57,7 @@ const input = new Input(world.renderer.domElement, {
   },
   onCamera: (dyaw, dzoom, dpitch = 0) => { world.yaw += dyaw; world.targetDist = Math.max(9, Math.min(24, world.targetDist + dzoom)); world.pitch = Math.max(0.5, Math.min(1.3, world.pitch + dpitch)); },
   menuOpen: () => !game || ui.anyOpen() || vkbOpen(),
+  onMenuScroll: (dy) => ui.padScroll(dy, game && ui.anyOpen() ? ui.openPanelEl() : titleRoot()),
   onSource: (s) => { ui.setSource(s); ui.controlsHelp(s); if (s === 'touch' && !touchOn) setTouch(true); if (s === 'pad' && !game) setTimeout(() => focusTitle(), 0); },
 });
 input.bindTouch($('#touch'));

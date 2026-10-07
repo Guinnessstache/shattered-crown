@@ -629,7 +629,7 @@ export class UI {
 
   controlsHelp(src) {
     $('#controls-help').innerHTML = src === 'pad'
-      ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> drop (sell in shops) · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
+      ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · right stick to scroll · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> drop (sell in shops) · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
       : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Space</kbd> or 🗡 button attack · <kbd>1</kbd>–<kbd>4</kbd> or skill buttons use skills (aimed at the cursor) · <kbd>Hold a mouse button + drag</kbd> turn camera · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> also turn camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
   }
 
@@ -693,11 +693,45 @@ export class UI {
       const main = horiz ? Math.abs(dx) : Math.abs(dy);
       // Sideways distance counts only when the boxes don't line up at all.
       const cross = horiz ? Math.max(0, r.top - r0.bottom, r0.top - r.bottom) : Math.max(0, r.left - r0.right, r0.left - r.right);
-      const d = main + cross * 2.5 + (horiz ? Math.abs(dy) : Math.abs(dx)) * 0.05;
+      // Anything sharing the row (or column) wins over anything that doesn't, so left/right
+      // flips between side-by-side cards instead of dropping onto a wide field below them.
+      const d = main + cross * 2.5 + (cross > 0 ? 5000 : 0) + (horiz ? Math.abs(dy) : Math.abs(dx)) * 0.05;
       if (d < bd) { bd = d; best = el; }
     }
     if (best) { best.focus({ preventScroll: true }); best.scrollIntoView?.({ block: 'nearest' }); }
+    // Nothing further down/up: scroll the window instead, so text below the last button is reachable.
+    else if (dir === 'up' || dir === 'down') this.padScroll((dir === 'down' ? 1 : -1) * 160, root, true);
     return true;
+  }
+
+  // Right stick (or D-pad past the last item): scroll whichever part of the open window scrolls.
+  scrollTarget(root) {
+    if (!root) return null;
+    const scrolls = (el) => { if (el.scrollHeight <= el.clientHeight + 2) return false; const o = getComputedStyle(el).overflowY; return o === 'auto' || o === 'scroll'; };
+    for (let el = document.activeElement; el && root.contains(el); el = el.parentElement) if (scrolls(el)) return el;
+    if (scrolls(root)) return root;
+    let best = null; let area = 0;
+    for (const el of root.querySelectorAll('*')) {
+      if (el.offsetParent === null || !scrolls(el)) continue;
+      const a = el.clientWidth * el.clientHeight; if (a > area) { area = a; best = el; }
+    }
+    return best;
+  }
+  padScroll(dy, root = this.openPanelEl(), smooth = false) {
+    const el = this.scrollTarget(root); if (!el) return false;
+    const before = el.scrollTop;
+    el.scrollBy({ top: dy, behavior: smooth ? 'smooth' : 'instant' });
+    // Keep the controller highlight on screen: if it scrolled out of view, move focus to a visible control.
+    const a = document.activeElement;
+    if (this.source === 'pad' && a && el.contains(a)) {
+      const r = a.getBoundingClientRect(); const v = el.getBoundingClientRect();
+      if (r.bottom < v.top || r.top > v.bottom) {
+        const vis = this.focusables(el).filter((f) => { const fr = f.getBoundingClientRect(); return fr.top >= v.top && fr.bottom <= v.bottom; });
+        const pick = dy > 0 ? vis[0] : vis[vis.length - 1];
+        pick?.focus({ preventScroll: true });
+      }
+    }
+    return el.scrollTop !== before || smooth;
   }
 
   // A: press the focused control (select an item, press a button, tick a box).

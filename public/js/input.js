@@ -179,6 +179,11 @@ export class Input {
       const cx = dz(rx) * (this.opts.invertX ? -1 : 1); const cy = dz(ry) * (this.opts.invertY ? -1 : 1);
       if (cx || cy) this.h.onCamera(cx * 0.045, 0, cy * 0.012);
     }
+    // In menus the right stick scrolls the open window (inventory, shop, menu, hero list …).
+    if (menu) {
+      const sy = dz(ry);
+      if (sy) { this.setSource('pad'); this.h.onMenuScroll?.(Math.sign(sy) * sy * sy * 22 + sy * 4); }
+    }
     // Menu navigation: D-pad or left stick, with auto-repeat while held.
     const now = performance.now();
     let dir = st.up ? 'Up' : st.down ? 'Down' : st.left ? 'Left' : st.right ? 'Right' : null;
