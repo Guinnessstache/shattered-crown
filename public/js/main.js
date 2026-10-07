@@ -1,7 +1,8 @@
 // Entry point: sign-in, hero select, and the main loop.
 import { io } from '/socket.io/socket.io.esm.min.js';
 import { World } from './render/world.js';
-import { loadModelManifest, skinnedHeroes } from './render/models.js';
+import * as Models from './render/models.js';
+const { loadModelManifest, skinnedHeroes } = Models;
 import { loadBakedTextures } from './render/textures.js';
 import { Input } from './input.js';
 import { UI, esc, $, $$ } from './ui.js';
@@ -98,6 +99,8 @@ const show = (id) => { for (const s of ['auth', 'select', 'hud']) $(`#${s}`).cla
 async function boot() {
   try { config = await (await fetch('/api/config')).json(); } catch { config = {}; }
   await Promise.all([loadModelManifest(), loadBakedTextures()]);
+  // Swap the select-screen hero for its animated model once that finishes loading.
+  Models.heroModelsReady.then(() => { if (!game && preview && selected) selectHero(selected); });
   // Town backdrop behind the menus
   const town = generateTown();
   world.loadZone(town);
@@ -296,13 +299,15 @@ document.addEventListener('click', (e) => { const b = e.target.closest?.('#hud b
 $('#rotate-fs').addEventListener('click', () => enterFullscreen());
 $('#ios-tip-x').addEventListener('click', () => { $('#ios-tip').classList.add('hidden'); store.set('iosTip', '1'); });
 
-function play(mode, code) {
+async function play(mode, code) {
   if (!selected) return;
   if (coarse) enterFullscreen(); // must happen in the tap that starts the game
   if (coarse && isIOS && !standalone && store.get('iosTip') !== '1') $('#ios-tip').classList.remove('hidden');
   sfx.unlock();
   $('#select-error').textContent = '';
   $('#fade').classList.add('on');
+  // The animated hero models load in the background; give a slow connection a few seconds.
+  await Promise.race([Models.heroModelsReady, new Promise((r) => setTimeout(r, 6000))]);
   socket.emit('play', { charId: selected, mode, code }, (r) => {
     if (!r?.ok) { $('#fade').classList.remove('on'); $('#select-error').textContent = r?.error || 'Could not start'; return; }
     if (preview) { world.remove(preview); preview = null; }

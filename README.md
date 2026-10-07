@@ -71,28 +71,44 @@ Like EverQuest 2's mentoring: in a dungeon, every hero above the lowest-level he
 
 ## Motion-captured heroes (Mixamo)
 
-The Knight uses a Mixamo character and its "Sword and Shield" animation pack instead of the code-built model. Other classes still use the Blender-built ones.
+All four classes use Mixamo characters with motion-captured animation packs:
 
-**Source files.** The raw Mixamo files live in `art-source/mixamo/sns/`. That folder is git-ignored: Mixamo allows its characters in games, but not redistributing the raw files.
+| Class | Character | Pack |
+|---|---|---|
+| Knight | Knight D Pelegrini | Sword and Shield |
+| Berserker | Brute | Great Sword (played with the game's axes) |
+| Alchemist | Nightshade J Friedrich | Magic Spell |
+| Druid | Arissa | Magic Spell |
 
-**Building.** `tools/blender/build_mixamo_hero.py` builds `public/models/hero_knight_mx.glb`, about 1.9 MB. It:
-- picks 13 clips and renames them to the game's action names;
+The casters borrow walk, run, hit and death from the Sword and Shield pack, with the hip motion rescaled to their height. The older Blender-built heroes remain as a fallback and are used for inventory icons.
+
+**Source files.** The raw Mixamo files live in `art-source/mixamo/{sns,gs,mag_ns,mag_ar}`. That folder is git-ignored: Mixamo allows its characters in games, but not redistributing the raw files.
+
+**Configuration.** `tools/blender/mixamo_heroes.json` lists, for each hero:
+- the character file and any prop meshes to drop;
+- which pack clip plays each game action (`swing0..2` combo, `cast0..2` random variants, `throw`, skill clips, `hit`, `death`);
+- how each one-shot clip is trimmed.
+
+**Building.** `tools/blender/build_mixamo_hero.py` builds every hero GLB (1.7–2.5 MB each) and records height, walk/run speed and trims in `public/models/manifest.json`. It:
 - strips root motion so every clip plays in place;
 - turns the specular map into roughness/metal;
-- shrinks the textures to 1024px WebP;
-- writes one Draco-compressed GLB.
+- keeps the emissive glows;
+- downsizes the textures to WebP;
+- writes one Draco-compressed file per hero.
 
 ```
 pip install bpy==5.2.2      # Blender as a Python module (Python 3.13)
-python tools/blender/build_mixamo_hero.py -- art-source/mixamo/sns public/models/hero_knight_mx.glb
+python tools/blender/build_mixamo_hero.py -- art-source/mixamo public/models            # all heroes
+python tools/blender/build_mixamo_hero.py -- art-source/mixamo public/models hero_druid_mx
 ```
 
 **Playback.** `public/js/render/skinned.js` plays the clips through a three.js AnimationMixer:
-- **Movement:** idle, walk and run blend by speed, with playback speed matched to the hero's ground speed.
-- **Attacks:** cycle through three slashes. While moving they play on the upper body only, so the legs keep running.
-- **Weapons and shields:** the game's own generated gear is attached to the hand and forearm bones (`GRIP` in models.js).
+- **Movement:** idle, walk and run blend by speed, with playback matched to the hero's ground speed.
+- **Attacks while moving:** play on the upper body only, so the legs keep running.
+- **Gear:** the game's own weapons and shields attach to the hand and forearm bones (`GRIP` in models.js; the axe grip was measured from the Brute's original axe).
+- **Loading:** the hero models load in the background behind the title screen.
 
-**Viewer.** `/dev/anim.html` plays each action on the Knight with gear. A menu option switches back to the old model.
+**Viewer and toggle.** `/dev/anim.html?cls=druid` previews each class. The menu option "Motion-captured hero models" switches back to the old ones.
 
 ## Admin console
 

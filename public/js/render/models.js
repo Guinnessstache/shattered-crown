@@ -466,14 +466,21 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/vendor/three/examples/j
 let manifest = null;
 
 // Optional Blender-made models listed in /models/manifest.json replace the built-in ones.
+// The motion-captured heroes (a few MB) keep loading in the background after this resolves:
+// await heroModelsReady before building them (until then heroes fall back to the older models).
+export let heroModelsReady = Promise.resolve();
 export async function loadModelManifest() {
   try {
     const r = await fetch('/models/manifest.json', { cache: 'no-cache' });
     if (!r.ok) return;
     manifest = await r.json();
-    await Promise.all(Object.entries(manifest.models || {}).map(async ([key, file]) => {
+    const load = async ([key, file]) => {
       try { const g = await loader.loadAsync(`/models/${file}`); glbCache.set(key, g.scene); if (g.animations?.length) clipCache.set(key, g.animations); } catch (e) { console.warn('model', key, e); }
-    }));
+    };
+    const all = Object.entries(manifest.models || {});
+    const skinned = all.filter(([k]) => manifest.rigs?.[k] === 'skinned');
+    heroModelsReady = Promise.all(skinned.map(load));
+    await Promise.all(all.filter((e) => !skinned.includes(e)).map(load));
   } catch { /* no manifest: use built-in models */ }
 }
 
@@ -611,29 +618,37 @@ export function buildStatue(key, stone, pose = 'raise') {
   return s;
 }
 
-// Classes with a motion-captured model (Mixamo) use it; the rest keep the Blender-built ones.
-const SKINNED = { knight: 'hero_knight_mx' };
+// Classes with a motion-captured model (Mixamo) use it; the Blender-built ones stay as a fallback.
+const SKINNED = { knight: 'hero_knight_mx', berserker: 'hero_berserker_mx', alchemist: 'hero_alchemist_mx', druid: 'hero_druid_mx' };
 export const skinnedHeroes = { enabled: true };
 function skinnedHero(cls, look) {
   const key = SKINNED[cls];
   if (!key || !skinnedHeroes.enabled || !glbCache.has(key)) return null;
-  const h = buildSkinnedHero(glbCache.get(key), clipCache.get(key) || [], manifest.heights?.[key] || 1.8);
+  const h = buildSkinnedHero(glbCache.get(key), clipCache.get(key) || [], manifest.heights?.[key] || 1.8, { speeds: manifest.speeds?.[key], shots: manifest.shots?.[key] });
   const { parts } = h.userData;
-  const wpn = weaponMesh(look.weapon?.kind || 'sword', look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
-  parts.weapon = attachToBone(parts.handR, wpn, GRIP.weapon);
+  const kind = look.weapon?.kind || CLASS_WEAPON[cls] || 'sword';
+  const wpn = weaponMesh(kind, look.weapon?.tier ?? 0, look.weapon?.rarity, look.weapon);
+  parts.weapon = attachToBone(parts.handR, wpn, GRIP[kind] || GRIP.sword);
   if (look.offhand) {
     const shd = shieldMesh(look.offhand.tier ?? 0, look.offhand.rarity, look.offhand);
     parts.shield = attachToBone(parts.foreL, shd, GRIP.shield);
   }
   return h;
 }
+const CLASS_WEAPON = { knight: 'sword', berserker: 'axe', alchemist: 'staff', druid: 'staff' };
 // How the game's weapons and shields sit on the Mixamo bones, in the rest pose (T-pose, palms
-// down, facing +Z, character's left = +X): blade out of the fist along the thumb (forward),
-// shield strapped on the back of the left forearm, upright when the arm crosses the chest.
+// down, facing +Z, character's left = +X). Swords and axes come out of the fist along the thumb
+// (forward); the axe grip matches where the Brute's own axe sat in the Great Sword pack. Staves
+// are held at their grip wrap, a third of the way up. Shields strap onto the back of the left forearm, upright when
+// the arm crosses the chest.
 export const GRIP = {
-  weapon: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.025, 0.0] },
+  sword: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.025, 0.0] },
+  axe: { y: [-0.33, 0.04, 0.94], z: [1, 0, 0], offset: [-0.117, -0.068, -0.038] },
+  mace: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.025, 0.0] },
+  staff: { y: [0, 0, 1], z: [1, 0, 0], offset: [-0.085, -0.03, 0.0] },
   shield: { y: [0, 0, 1], z: [0, 1, 0], offset: [0.12, 0.08, 0.0], scale: 0.85 },
 };
+GRIP.weapon = GRIP.sword;
 
 export function buildHero(cls, look) {
   const sk = skinnedHero(cls, look || {});

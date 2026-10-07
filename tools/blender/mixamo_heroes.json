@@ -1,0 +1,56 @@
+{
+  "_doc": "Hero models built from Mixamo characters + animation packs by build_mixamo_hero.py. Paths are relative to art-source/mixamo. Clip names are the game's action names; 'shots' trims one-shot clips (fractions of the clip) and sets their minimum on-screen length in seconds.",
+  "hero_knight_mx": {
+    "char": "sns/Knight_D_Pelegrini.fbx",
+    "clips": {
+      "idle": "sns/sword_and_shield_idle", "walk": "sns/sword_and_shield_walk", "run": "sns/sword_and_shield_run",
+      "swing0": "sns/sword_and_shield_attack_4", "swing1": "sns/sword_and_shield_slash", "swing2": "sns/sword_and_shield_slash_3",
+      "cleave": "sns/sword_and_shield_attack_2", "bash": "sns/sword_and_shield_block", "warcry": "sns/sword_and_shield_power_up",
+      "cast": "sns/sword_and_shield_casting_2", "hit": "sns/sword_and_shield_impact", "death": "sns/sword_and_shield_death",
+      "leap": "sns/sword_and_shield_slash_4"
+    }
+  },
+  "hero_berserker_mx": {
+    "char": "gs/brute.fbx",
+    "drop": ["BattleAxe_GEO"],
+    "clips": {
+      "idle": "gs/great_sword_idle", "walk": "gs/great_sword_walk", "run": "gs/great_sword_run_2",
+      "swing0": "gs/great_sword_slash", "swing1": "gs/great_sword_slash_3", "swing2": "gs/great_sword_attack",
+      "frenzy": "gs/great_sword_slash_5", "leap": "gs/great_sword_jump_attack", "whirlwind": "gs/great_sword_high_spin_attack",
+      "warcry": "gs/great_sword_power_up", "cast": "gs/spell_cast", "hit": "gs/great_sword_impact_2", "death": "gs/two_handed_sword_death"
+    },
+    "shots": {
+      "swing0": [0.12, 0.8, 0.55], "swing1": [0.12, 0.72, 0.65], "swing2": [0.1, 0.78, 0.6],
+      "frenzy": [0.1, 0.85, 0.5], "leap": [0.1, 0.8, 0.85], "whirlwind": [0.08, 0.9, 0.85], "warcry": [0.1, 0.85, 1.1]
+    }
+  },
+  "hero_alchemist_mx": {
+    "char": "mag_ns/nightshade_j_friedrich.fbx",
+    "clips": {
+      "idle": "mag_ns/standing_idle", "walk": "sns/sword_and_shield_walk", "run": "sns/sword_and_shield_run",
+      "throw": "mag_ns/standing_1h_magic_attack_01",
+      "swing0": "mag_ns/standing_1h_magic_attack_01", "swing1": "mag_ns/standing_1h_magic_attack_02", "swing2": "mag_ns/standing_1h_magic_attack_03",
+      "cast0": "mag_ns/standing_2h_cast_spell_01", "cast1": "mag_ns/standing_1h_cast_spell_01", "cast2": "mag_ns/standing_2h_magic_area_attack_01",
+      "warcry": "mag_ns/standing_2h_magic_area_attack_02", "hit": "sns/sword_and_shield_impact", "death": "sns/sword_and_shield_death"
+    },
+    "shots": {
+      "throw": [0.2, 0.62, 0.5], "swing0": [0.2, 0.62, 0.55], "swing1": [0.18, 0.62, 0.6], "swing2": [0.2, 0.62, 0.6],
+      "cast0": [0.15, 0.75, 0.8], "cast1": [0.15, 0.72, 0.8], "cast2": [0.12, 0.7, 0.85], "warcry": [0.12, 0.8, 1.0]
+    }
+  },
+  "hero_druid_mx": {
+    "char": "mag_ar/arissa.fbx",
+    "drop": ["arissa:Weapons_Geo"],
+    "clips": {
+      "idle": "mag_ar/standing_idle", "walk": "sns/sword_and_shield_walk", "run": "sns/sword_and_shield_run",
+      "throw": "mag_ar/standing_1h_magic_attack_01",
+      "swing0": "mag_ar/standing_1h_magic_attack_01", "swing1": "mag_ar/standing_1h_magic_attack_02", "swing2": "mag_ar/standing_1h_magic_attack_03",
+      "cast0": "mag_ar/standing_2h_cast_spell_01", "cast1": "mag_ar/standing_2h_magic_attack_01", "cast2": "mag_ar/standing_2h_magic_area_attack_01",
+      "warcry": "mag_ar/standing_2h_magic_area_attack_02", "hit": "sns/sword_and_shield_impact", "death": "sns/sword_and_shield_death"
+    },
+    "shots": {
+      "throw": [0.2, 0.62, 0.5], "swing0": [0.2, 0.62, 0.55], "swing1": [0.18, 0.62, 0.6], "swing2": [0.2, 0.62, 0.6],
+      "cast0": [0.15, 0.75, 0.8], "cast1": [0.12, 0.7, 0.8], "cast2": [0.12, 0.7, 0.85], "warcry": [0.12, 0.8, 1.0]
+    }
+  }
+}

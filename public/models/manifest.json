@@ -7,7 +7,10 @@
     "hero_berserker": "hero_berserker.glb",
     "hero_alchemist": "hero_alchemist.glb",
     "hero_druid": "hero_druid.glb",
-    "hero_knight_mx": "hero_knight_mx.glb"
+    "hero_knight_mx": "hero_knight_mx.glb",
+    "hero_berserker_mx": "hero_berserker_mx.glb",
+    "hero_alchemist_mx": "hero_alchemist_mx.glb",
+    "hero_druid_mx": "hero_druid_mx.glb"
   },
   "rigs": {
     "hero_knight": "humanoid",
@@ -17,7 +20,10 @@
     "hero_berserker": "humanoid",
     "hero_alchemist": "humanoid",
     "hero_druid": "humanoid",
-    "hero_knight_mx": "skinned"
+    "hero_knight_mx": "skinned",
+    "hero_berserker_mx": "skinned",
+    "hero_alchemist_mx": "skinned",
+    "hero_druid_mx": "skinned"
   },
   "heights": {
     "hero_knight": 1.95,
@@ -27,6 +33,150 @@
     "hero_berserker": 1.95,
     "hero_alchemist": 1.9,
     "hero_druid": 1.95,
-    "hero_knight_mx": 1.85
+    "hero_knight_mx": 2.04,
+    "hero_berserker_mx": 2.16,
+    "hero_alchemist_mx": 2.32,
+    "hero_druid_mx": 1.79
+  },
+  "speeds": {
+    "hero_knight_mx": {
+      "walk": 1.69,
+      "run": 4.67
+    },
+    "hero_berserker_mx": {
+      "walk": 1.27,
+      "run": 5.01
+    },
+    "hero_alchemist_mx": {
+      "walk": 1.77,
+      "run": 4.89
+    },
+    "hero_druid_mx": {
+      "walk": 1.37,
+      "run": 3.79
+    }
+  },
+  "shots": {
+    "hero_berserker_mx": {
+      "swing0": {
+        "from": 0.12,
+        "to": 0.8,
+        "min": 0.55
+      },
+      "swing1": {
+        "from": 0.12,
+        "to": 0.72,
+        "min": 0.65
+      },
+      "swing2": {
+        "from": 0.1,
+        "to": 0.78,
+        "min": 0.6
+      },
+      "frenzy": {
+        "from": 0.1,
+        "to": 0.85,
+        "min": 0.5
+      },
+      "leap": {
+        "from": 0.1,
+        "to": 0.8,
+        "min": 0.85
+      },
+      "whirlwind": {
+        "from": 0.08,
+        "to": 0.9,
+        "min": 0.85
+      },
+      "warcry": {
+        "from": 0.1,
+        "to": 0.85,
+        "min": 1.1
+      }
+    },
+    "hero_alchemist_mx": {
+      "throw": {
+        "from": 0.2,
+        "to": 0.62,
+        "min": 0.5
+      },
+      "swing0": {
+        "from": 0.2,
+        "to": 0.62,
+        "min": 0.55
+      },
+      "swing1": {
+        "from": 0.18,
+        "to": 0.62,
+        "min": 0.6
+      },
+      "swing2": {
+        "from": 0.2,
+        "to": 0.62,
+        "min": 0.6
+      },
+      "cast0": {
+        "from": 0.15,
+        "to": 0.75,
+        "min": 0.8
+      },
+      "cast1": {
+        "from": 0.15,
+        "to": 0.72,
+        "min": 0.8
+      },
+      "cast2": {
+        "from": 0.12,
+        "to": 0.7,
+        "min": 0.85
+      },
+      "warcry": {
+        "from": 0.12,
+        "to": 0.8,
+        "min": 1.0
+      }
+    },
+    "hero_druid_mx": {
+      "throw": {
+        "from": 0.2,
+        "to": 0.62,
+        "min": 0.5
+      },
+      "swing0": {
+        "from": 0.2,
+        "to": 0.62,
+        "min": 0.55
+      },
+      "swing1": {
+        "from": 0.18,
+        "to": 0.62,
+        "min": 0.6
+      },
+      "swing2": {
+        "from": 0.2,
+        "to": 0.62,
+        "min": 0.6
+      },
+      "cast0": {
+        "from": 0.15,
+        "to": 0.75,
+        "min": 0.8
+      },
+      "cast1": {
+        "from": 0.12,
+        "to": 0.7,
+        "min": 0.8
+      },
+      "cast2": {
+        "from": 0.12,
+        "to": 0.7,
+        "min": 0.85
+      },
+      "warcry": {
+        "from": 0.12,
+        "to": 0.8,
+        "min": 1.0
+      }
+    }
   }
 }

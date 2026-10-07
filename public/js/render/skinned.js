@@ -7,8 +7,9 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 // Bones that make up the upper body: attacks use only these while the legs keep running.
 const UPPER = /Spine|Neck|Head|Shoulder|Arm|Hand/;
 
-// Native travel speed of the locomotion clips (metres per second at playback speed 1).
-const NATIVE = { walk: 1.69, run: 4.67 };
+// Native travel speed of the locomotion clips (metres per second at playback speed 1). Each
+// model's own speeds come from manifest.json (measured by the build script); these are defaults.
+const NATIVE = { walk: 1.6, run: 4.6 };
 
 // One-shot clips: which part of the clip to play (fractions) and how long it should take at
 // minimum. Mocap clips start and end in a neutral stance; trimming the lead-in and the
@@ -24,10 +25,11 @@ const SHOT = {
   leap: { from: 0.15, to: 0.8, min: 0.9 },
   hit: { from: 0.0, to: 0.8, min: 0.45 },
 };
-// Game action names (what skills ask for) -> clip.
-const ALIAS = { attack: 'swing', frenzy: 'swing', whirlwind: 'cleave', slam: 'leap', throw: 'cast', shoot: 'cast', charge: 'charge' };
+// When a model has no clip for an action, fall back to a close one.
+const ALIAS = { attack: 'swing', frenzy: 'swing', whirlwind: 'cleave', cleave: 'whirlwind', slam: 'leap', throw: 'swing', shoot: 'throw', bash: 'swing', warcry: 'cast', leap: 'swing' };
+const VARIANTS = { swing: 3, cast: 3 }; // swing0..2, cast0..2 when the model has them
 
-export function buildSkinnedHero(src, clips, height) {
+export function buildSkinnedHero(src, clips, height, { speeds = null, shots = null } = {}) {
   const root = new THREE.Group();
   const body = cloneSkinned(src);
   root.add(body);
@@ -38,11 +40,13 @@ export function buildSkinnedHero(src, clips, height) {
     if (o.isMesh) {
       o.castShadow = true; o.frustumCulled = false; // skinned bounds don't follow the pose
       o.material = o.material.clone();
+      // Hair, lashes and moustaches: cut out instead of sorted blending (no flicker, casts shadows).
+      if (o.material.transparent && o.material.map) { o.material.transparent = false; o.material.alphaTest = 0.45; o.material.depthWrite = true; }
       mats.push(o.material);
     }
   });
   const parts = { root, body, bones, handR: bones.RightHand, handL: bones.LeftHand, foreL: bones.LeftForeArm };
-  root.userData = { parts, rig: 'skinned', clips, height, mats, fromGlb: true };
+  root.userData = { parts, rig: 'skinned', clips, height, mats, fromGlb: true, speeds: { ...NATIVE, ...(speeds || {}) }, shots: { ...SHOT, ...(shots || {}) } };
   return root;
 }
 
@@ -82,6 +86,8 @@ export class SkinnedAnimator {
     this.m = model; this.p = u.parts; this.rig = 'skinned';
     this.mixer = new THREE.AnimationMixer(u.parts.body);
     this.clips = Object.fromEntries(u.clips.map((c) => [c.name, c]));
+    this.native = u.speeds || NATIVE; this.shots = u.shots || SHOT;
+    this.variant = {};
     this.mats = u.mats.filter((m) => 'emissive' in m);
     this.speed = 0; this.dead = false; this.deadT = 0; this.combo = 0; this.flash = 0; this.flinch = 0;
     this.windup = false; this.stunned = false; this.action = null; this.t = 0;
@@ -98,11 +104,10 @@ export class SkinnedAnimator {
 
   play(name, dur) {
     if (this.dead) return;
-    let clip = ALIAS[name] || name;
-    if (clip === 'swing') { this.combo = (this.combo + 1) % 3; clip = `swing${this.combo}`; }
-    if (clip === 'charge') { this.shot = { charge: true, t: 0, dur: dur || 0.35 }; return; }
-    if (!this.clips[clip]) clip = 'swing0';
-    const spec = SHOT[clip] || { from: 0, to: 1, min: 0.5 };
+    if (name === 'charge') { this.shot = { charge: true, t: 0, dur: dur || 0.35 }; return; }
+    const clip = this.resolve(name);
+    if (!clip) return;
+    const spec = this.shots[clip] || { from: 0.05, to: 0.9, min: 0.6 };
     const full = this.clips[clip];
     const moving = this.speed > 0.6;
     const c = moving ? upperBody(full) : full;
@@ -117,6 +122,22 @@ export class SkinnedAnimator {
     a.fadeIn(0.06).play();
     this.shot = { action: a, t: 0, dur: len, full: !moving };
     this.action = { name, t: 0, dur: len };
+  }
+
+  // Pick the clip for a game action: the model's own clip, a variant (swing combo, random cast),
+  // or a stand-in from ALIAS.
+  resolve(name, depth = 0) {
+    if (name === 'swing' && this.clips.swing0) { this.combo = (this.combo + 1) % 3; return this.clips[`swing${this.combo}`] ? `swing${this.combo}` : 'swing0'; }
+    if (VARIANTS[name] && this.clips[`${name}0`] && !this.clips[name]) {
+      const n = [0, 1, 2].filter((i) => this.clips[`${name}${i}`]);
+      let i = n[Math.floor(Math.random() * n.length)];
+      if (n.length > 1 && i === this.variant[name]) i = n[(n.indexOf(i) + 1) % n.length]; // never the same twice running
+      this.variant[name] = i;
+      return `${name}${i}`;
+    }
+    if (this.clips[name]) return name;
+    if (depth < 3 && ALIAS[name]) return this.resolve(ALIAS[name], depth + 1);
+    return this.clips.swing0 ? 'swing0' : null;
   }
 
   hit() {
@@ -175,8 +196,8 @@ export class SkinnedAnimator {
     if (S?.charge) { wIdle = 0; wWalk = 0; wRun = 1; }
     const L = this.loco;
     if (L.idle) L.idle.setEffectiveWeight(wIdle * lw);
-    if (L.walk) { L.walk.setEffectiveWeight(wWalk * lw); L.walk.timeScale = Math.max(0.6, sp / NATIVE.walk); }
-    if (L.run) { L.run.setEffectiveWeight(wRun * lw); L.run.timeScale = S?.charge ? 2.2 : Math.max(0.7, sp / NATIVE.run); }
+    if (L.walk) { L.walk.setEffectiveWeight(wWalk * lw); L.walk.timeScale = Math.max(0.6, sp / this.native.walk); }
+    if (L.run) { L.run.setEffectiveWeight(wRun * lw); L.run.timeScale = S?.charge ? 2.2 : Math.max(0.7, sp / this.native.run); }
     if (S) {
       S.t += dt;
       if (this.action) this.action.t = S.t;

@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadModelManifest, buildHero } from '/js/render/models.js';
+import * as Models from '/js/render/models.js';
+const { loadModelManifest, buildHero } = Models;
 import { SkinnedAnimator } from '/js/render/skinned.js';
 
 const q = new URLSearchParams(location.search);
@@ -25,11 +26,15 @@ camera.position.set(...V);
 const controls = new OrbitControls(camera, renderer.domElement); controls.target.set(0, 1, 0); controls.update();
 
 await loadModelManifest();
-const look = { weapon: { kind: q.get('weapon') || 'sword', tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 7 }, offhand: { kind: 'shield', tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 9 } };
-const hero = buildHero('knight', look);
+await Models.heroModelsReady;
+const cls = q.get('cls') || 'knight';
+const WPN = { knight: 'sword', berserker: 'axe', alchemist: 'staff', druid: 'staff' };
+const look = { weapon: { kind: q.get('weapon') || WPN[cls], tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 7 } };
+if (cls === 'knight') look.offhand = { kind: 'shield', tier: Number(q.get('tier') ?? 2), rarity: 'rare', s: 9 };
+const hero = buildHero(cls, look);
 scene.add(hero);
 const anim = new SkinnedAnimator(hero);
-const ACTIONS = ['idle', 'walk', 'run', 'swing', 'cleave', 'bash', 'charge', 'warcry', 'cast', 'leap', 'hit', 'death'];
+const ACTIONS = ['idle', 'walk', 'run', 'swing', 'cleave', 'bash', 'charge', 'warcry', 'cast', 'throw', 'leap', 'frenzy', 'whirlwind', 'hit', 'death'];
 let cur = q.get('action') || 'idle';
 const bar = document.getElementById('bar');
 bar.innerHTML = ACTIONS.map((a) => `<button data-a="${a}" class="${a === cur ? 'on' : ''}">${a}</button>`).join('');
