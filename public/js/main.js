@@ -474,3 +474,29 @@ function frame(t) {
 requestAnimationFrame(frame);
 boot();
 window.__sc = { world, ui, get game() { return game; }, get socket() { return socket; } };
+
+
+// ---------------------------------------------------------------- iOS page-zoom guard
+// Safari ignores "user-scalable=no", so a double-tap or pinch can zoom the whole page (not the
+// game camera) and leave it stuck. Block those gestures, and snap back if it zooms anyway.
+(() => {
+  const isText = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  let lastTap = 0;
+  document.addEventListener('touchend', (e) => {
+    const t = Date.now();
+    if (t - lastTap < 320 && !isText(e.target) && !e.target.closest?.('button, a, select, label, .slot')) e.preventDefault(); // double-tap zoom (buttons keep fast taps)
+    lastTap = t;
+  }, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false }); // pinch
+  const meta = document.querySelector('meta[name="viewport"]');
+  const base = meta?.getAttribute('content') || '';
+  const unzoom = () => {
+    if (!window.visualViewport || window.visualViewport.scale <= 1.01 || isText(document.activeElement)) return;
+    // Re-applying a viewport that forbids zoom makes Safari reset the page scale.
+    meta.setAttribute('content', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no');
+    setTimeout(() => meta.setAttribute('content', base), 400);
+  };
+  window.visualViewport?.addEventListener('resize', () => setTimeout(unzoom, 250));
+  document.addEventListener('focusout', () => setTimeout(unzoom, 300));
+})();
