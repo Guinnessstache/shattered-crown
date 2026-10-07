@@ -32,6 +32,9 @@ export class Input {
       if (this.typing()) return;
       const k = e.key.toLowerCase();
       if (e.repeat && !['w', 'a', 's', 'd'].includes(k)) return;
+      // Handhelds in "desktop mode" turn D-pad/buttons into key presses too; don't let those
+      // knock the game out of controller mode.
+      if (this.padRecent(400)) return;
       this.setSource('keyboard');
       this.keys.add(k);
       const map = { '1': 'skill0', '2': 'skill1', '3': 'skill2', '4': 'skill3', q: 'hp', r: 'mp', e: 'use', f: 'use', i: 'inventory', c: 'character', k: 'skills', tab: 'map', m: 'map', escape: 'menu', enter: 'chat', v: 'ptt', ' ': 'attack' };
@@ -49,13 +52,20 @@ export class Input {
       if (k === 'v') this.h.onAction('ptt', false);
     });
     addEventListener('blur', () => { this.keys.clear(); this.attackHeld = false; this.lmb = null; });
-    canvas.addEventListener('mousemove', (e) => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.inside = true; if (this.source !== 'touch') this.setSource('keyboard'); });
+    canvas.addEventListener('mousemove', (e) => {
+      this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.inside = true;
+      if (this.source === 'touch') return;
+      if (this.source === 'pad' && !this.realMouse(e)) return;
+      this.setSource('keyboard');
+    });
     canvas.addEventListener('mouseleave', () => { this.mouse.inside = false; });
     // The mouse never attacks: it's free for menus, aiming and the camera.
     // Hold either button and drag to turn the camera (and tilt it with up/down).
     // The right button captures the cursor while held; the left button just drags.
     canvas.addEventListener('mousedown', (e) => {
       if (e.sourceCapabilities?.firesTouchEvents || this.source === 'touch') return;
+      // A handheld mapping the A button to a mouse click: ignore the fake click.
+      if (this.source === 'pad' && this.padRecent(400)) return;
       this.setSource('keyboard');
       this.mouse.x = e.clientX; this.mouse.y = e.clientY;
       if (e.button === 0) this.lmb = { x: e.clientX, y: e.clientY };
@@ -97,6 +107,21 @@ export class Input {
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => { this.h.onCamera(0, Math.sign(e.deltaY) * 1.2); e.preventDefault(); }, { passive: false });
+  }
+
+  // Was the controller touched in the last `ms` milliseconds?
+  padRecent(ms) { return performance.now() - (this.padAt || -1e9) < ms; }
+
+  // Handheld PCs (ROG Ally, Legion Go, Claw, Steam) often turn a thumbstick into mouse movement
+  // when the app isn't a recognised game. While the controller is in use, mouse movement only
+  // counts as a real mouse once the controller has been idle for a moment and the mouse has
+  // travelled a decent distance.
+  realMouse(e) {
+    if (this.padRecent(1200)) { this.mouseTravel = 0; return false; }
+    this.mouseTravel = (this.mouseTravel || 0) + Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0);
+    if (this.mouseTravel < 40) return false;
+    this.mouseTravel = 0;
+    return true;
   }
 
   setSource(s) {
@@ -172,7 +197,7 @@ export class Input {
     const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
     const mx = dz(lx); const my = dz(ly);
     this.padMove = this.h.menuOpen?.() ? { x: 0, y: 0 } : { x: mx, y: -my };
-    if (mx || my || Object.values(st).some(Boolean)) this.setSource('pad');
+    if (mx || my || dz(rx) || dz(ry) || Object.values(st).some(Boolean)) { this.padAt = performance.now(); this.setSource('pad'); }
     const menu = !!this.h.menuOpen?.();
     // Right stick: X turns the camera, Y tilts it (either can be inverted in the menu).
     if (this.source === 'pad' && !menu) {

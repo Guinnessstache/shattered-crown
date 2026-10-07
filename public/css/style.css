@@ -511,3 +511,6 @@ body.cam-drag, body.cam-drag canvas { cursor: grabbing; }
 .adm-status.err { color: #ff9a9a; }
 .adm-status.ok { color: #9fe0b0; }
 @media (max-width: 560px) { .adm-row { grid-template-columns: 1fr 1fr; } }
+
+/* Controller in use: hide the mouse pointer (handhelds can move it with a stick in desktop mode). */
+body.pad-on, body.pad-on * { cursor: none !important; }
