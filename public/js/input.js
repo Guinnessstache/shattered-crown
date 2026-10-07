@@ -38,6 +38,9 @@ export class Input {
       // arrows …). The fake key can arrive a moment before we see the button on the controller,
       // so while the controller is in use, wait a beat and drop keys that came with a button press.
       if (this.source === 'pad') {
+        // Swallow the key itself too, so a fake Enter/Space can't press a button that still has
+        // focus (like the full-screen button) and a fake F11 can't toggle the browser's full screen.
+        e.preventDefault();
         this.held.add(k);
         setTimeout(() => {
           if (this.padRecent(350)) return;

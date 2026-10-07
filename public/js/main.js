@@ -283,7 +283,13 @@ screen.orientation?.addEventListener?.('change', checkOrientation);
 document.addEventListener('fullscreenchange', () => { if (!fsElement()) navigator.keyboard?.unlock?.(); checkOrientation(); });
 // No browser right-click menu anywhere in the game (handhelds often map B to a right-click).
 document.addEventListener('contextmenu', (e) => { if (!/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) e.preventDefault(); });
-$('#fs-btn').addEventListener('click', () => (fsElement() ? exitFullscreen() : enterFullscreen()));
+$('#fs-btn').addEventListener('click', (e) => {
+  if (e.detail === 0 && input.source === 'pad') return; // a key press, not a tap: ignore while on the controller
+  if (fsElement()) exitFullscreen(); else enterFullscreen();
+});
+// HUD buttons (full screen, map, bag, skills …) drop focus once tapped, so a later Enter/Space
+// — or a controller button a handheld turns into one — can't press them again.
+document.addEventListener('click', (e) => { const b = e.target.closest?.('#hud button'); if (b) setTimeout(() => b.blur(), 0); });
 $('#rotate-fs').addEventListener('click', () => enterFullscreen());
 $('#ios-tip-x').addEventListener('click', () => { $('#ios-tip').classList.add('hidden'); store.set('iosTip', '1'); });
 
