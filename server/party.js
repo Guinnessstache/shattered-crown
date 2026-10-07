@@ -63,7 +63,7 @@ export class Party {
   emitTo(pid, ev, data) { this.members.get(pid)?.socket.emit(ev, data); }
 
   roster() {
-    return [...this.members.values()].map((m) => ({ pid: m.pid, name: m.char.name, cls: m.char.cls, level: m.char.level, leader: m.pid === this.leader, mic: !!m.media.mic }));
+    return [...this.members.values()].map((m) => ({ pid: m.pid, name: m.char.name, cls: m.char.cls, level: m.char.level, sync: m.synced ? m.syncCap : 0, leader: m.pid === this.leader, mic: !!m.media.mic }));
   }
   sendRoster() { this.broadcast('party', { code: this.code, solo: this.solo, leader: this.leader, members: this.roster() }); }
 
@@ -136,6 +136,7 @@ export class Party {
     if (leveled) {
       const p = this.zone?.players.get(pid);
       if (p) { this.zone.refreshStats(pid); p.hp = p.stats.hpMax; p.mp = p.stats.mpMax; }
+      this.zone?.resync?.(); // the lowest hero levelling up raises everyone's cap
       this.broadcast('levelup', { pid, level: ch.level, name: ch.name });
       this.sendChar(pid);
       this.sendRoster();

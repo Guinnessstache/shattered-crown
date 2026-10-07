@@ -114,7 +114,7 @@ export class Zone {
     let { x, y } = this.map.start;
     x += off[0]; y += off[1];
     if (!this.map.walkableAt(x, y)) ({ x, y } = this.map.start);
-    member.syncCap = syncCapFor(this.spec.kind === 'dungeon' ? this.spec.floor : 0);
+    member.syncCap = this.syncCap(member);
     const stats = member.derived();
     const p = {
       id: `p${member.pid}`, k: 'p', pid: member.pid, member, name: member.char.name, cls: member.char.cls,
@@ -126,7 +126,35 @@ export class Zone {
     this.players.set(member.pid, p);
     this.party.sendChar?.(member.pid); // sheet + HUD reflect any level sync on this floor
     this.events.push({ t: 'padd', p: this.describePlayer(p) });
+    this.resync(); // a lower-level friend arriving brings everyone else down to their level
     return p;
+  }
+
+  // Level sync, like EverQuest 2 mentoring: in a dungeon everyone fights at the level of the
+  // lowest hero there (and never above what the floor allows), keeping all their skills.
+  syncCap(extra = null) {
+    if (this.spec.kind !== 'dungeon') return 0;
+    let cap = syncCapFor(this.spec.floor);
+    for (const p of this.players.values()) cap = Math.min(cap, p.member.char.level);
+    if (extra) cap = Math.min(cap, extra.char.level);
+    return Math.max(1, cap);
+  }
+  resync() {
+    const cap = this.syncCap();
+    let changed = false;
+    for (const p of this.players.values()) {
+      const m = p.member;
+      if (m.syncCap === cap) continue;
+      const before = m.synced ? m.syncCap : 0;
+      m.syncCap = cap;
+      const after = m.synced ? cap : 0;
+      if (before === after) continue;
+      changed = true;
+      this.refreshStats(p.pid);
+      this.party.sendChar?.(p.pid);
+      this.party.emitTo?.(p.pid, 'msg', after ? { text: `Level synced to ${after} to match your group`, kind: 'info' } : { text: 'Level sync lifted', kind: 'info' });
+    }
+    if (changed) this.party.sendRoster?.();
   }
 
   removePlayer(pid) {
@@ -135,6 +163,7 @@ export class Zone {
     p.member.hp = p.hp; p.member.mp = p.mp;
     this.players.delete(pid);
     this.events.push({ t: 'pdel', id: p.id });
+    this.resync(); // the lowest-level hero left: the rest go back up
     for (const e of [...this.ents.values()]) if (e.owner === pid) this.ents.delete(e.id);
     for (const e of [...this.ents.values()]) if (e.k === 'w' && e.by === pid) this.delEnt(e.id);
     this.areas = this.areas.filter((a) => a.by !== pid);

@@ -60,6 +60,15 @@ For testing in the browser, start with `DEV_CMDS=1 npm start` and use the consol
 | Character | I | View | 🎒 |
 | Map | Tab | R3 | Tap the minimap |
 
+## Level sync in groups
+
+Like EverQuest 2's mentoring: in a dungeon, every hero above the lowest-level hero there fights at that level. Very deep floors also have their own cap (floor × 1.5 + 2), so the lower of the two applies.
+
+- **What changes:** stats and gear are scaled down. All skills and skill ranks are kept.
+- **Bonus:** synced heroes earn +15% XP.
+- **On screen:** the party list shows e.g. `Lv 13 ⇣18`. The character sheet shows "synced down from 18".
+- **Lifting:** the sync lifts in town, when the lowest hero leaves, or as they level up.
+
 ## Admin console
 
 Type `/console` (or `/admin`) in chat while playing, then enter the admin password. The console stays unlocked until you press **Lock** or disconnect.

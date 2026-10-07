@@ -29,6 +29,14 @@ export class Input {
 
   bindKeyboard(canvas) {
     this.held = new Set();
+    // Handhelds in "desktop mode" also turn controller buttons into mouse clicks at wherever the
+    // hidden pointer sits — which can close a window (a click on the dark backdrop) or press a
+    // random button. While on the controller, drop every real mouse button event before anything
+    // else sees it. Touchscreen taps and the game's own controller "presses" still go through.
+    const fakeMouse = (e) => this.source === 'pad' && e.isTrusted && (e.pointerType || 'mouse') === 'mouse' && !e.sourceCapabilities?.firesTouchEvents;
+    for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick', 'auxclick']) {
+      addEventListener(ev, (e) => { if (fakeMouse(e)) { e.stopPropagation(); e.preventDefault(); } }, true);
+    }
     addEventListener('keydown', (e) => {
       if (this.typing()) return;
       const k = e.key.toLowerCase();

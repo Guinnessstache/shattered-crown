@@ -474,7 +474,24 @@ export class Game {
     if (m.kind === 'dungeon') {
       consider(Math.hypot(m.exit.x - me.x, m.exit.y - me.y), 2.4, { kind: 'down', text: this.bossAlive ? 'The stairs are sealed' : `Descend to floor ${m.floor + 1}` });
       consider(Math.hypot(m.entry.x - me.x, m.entry.y - me.y), 2.4, { kind: 'up', text: 'Return to town' });
-    } else consider(Math.hypot(m.exit.x - me.x, m.exit.y - me.y), 3.8, { kind: 'gate', text: 'Enter the dungeon' });
+    } else {
+      consider(Math.hypot(m.exit.x - me.x, m.exit.y - me.y), 3.8, { kind: 'gate', text: 'Enter the dungeon' });
+      // Duel arena: standing in the ring offers a challenge to the nearest party member.
+      const A = m.arena;
+      if (A && !this.duel && Math.hypot(me.x - A.x, me.y - A.y) < A.r + 0.5) {
+        if (this.partyInfo?.solo !== false) consider(60, 99, { kind: 'hint', text: 'Duel arena: host a party and bring a friend here to duel' });
+        else {
+          let foe = null; let fd = 1e9;
+          for (const v of this.world.ents.values()) {
+            if (v.k !== 'p' || v.id === this.myId || v.e.dead) continue;
+            const d = Math.hypot(v.x - me.x, v.y - me.y);
+            if (d < fd) { fd = d; foe = v; }
+          }
+          if (foe && fd < 30) consider(Math.max(3, fd), 99, { kind: 'duel', pid: foe.e.pid, name: foe.e.name, text: `Challenge ${foe.e.name} to a duel` });
+          else consider(60, 99, { kind: 'hint', text: 'Duel arena: a party member can meet you here to duel' });
+        }
+      }
+    }
     return best;
   }
 
@@ -482,6 +499,8 @@ export class Game {
     const u = this.findUsable();
     if (!u) return;
     if (u.kind === 'loot') this.socket.emit('pickup', { id: u.id });
+    else if (u.kind === 'duel') this.ui.openDuelSetup({ pid: u.pid, name: u.name });
+    else if (u.kind === 'hint') this.ui.msg(u.text, 'info');
     else this.socket.emit('interact', { id: u.id });
   }
 

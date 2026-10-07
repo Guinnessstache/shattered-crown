@@ -186,7 +186,7 @@ export class UI {
   partyFrames(roster, myPid, hp = {}) {
     const box = $('#party-frames');
     const others = roster.filter((m) => m.pid !== myPid);
-    box.innerHTML = others.map((m) => `<div class="pframe" data-pid="${m.pid}"><div class="n"><span>${esc(m.name)} <small>Lv ${m.level}</small></span><span class="talk">🔊</span></div><div class="b"><i></i></div></div>`).join('');
+    box.innerHTML = others.map((m) => `<div class="pframe" data-pid="${m.pid}"><div class="n"><span>${esc(m.name)} <small>Lv ${m.sync ? `${m.sync} <span title="Synced down from ${m.level}">⇣${m.level}</span>` : m.level}</small></span><span class="talk">🔊</span></div><div class="b"><i></i></div></div>`).join('');
   }
   partyHp(pid, hp, hpMax, dead) {
     const f = $(`.pframe[data-pid="${pid}"]`);
@@ -202,7 +202,7 @@ export class UI {
     $('#mic-btn').classList.toggle('hidden', p.solo);
     $('#party-code-line').innerHTML = p.solo ? 'Solo game' : `Party code <b>${esc(p.code)}</b> <button class="btn small" id="copy-code" type="button">Copy</button>`;
     $('#copy-code')?.addEventListener('click', () => { navigator.clipboard?.writeText(p.code).then(() => this.msg('Party code copied', 'good')).catch(() => {}); });
-    $('#party-list').innerHTML = p.members.map((m) => `<div><span>${m.leader ? '👑 ' : ''}${esc(m.name)}${m.pid === myPid ? ' (you)' : ''}</span><span>Lv ${m.level} ${m.mic ? '🎙' : ''}${!p.solo && m.pid !== myPid ? ` <button class="btn small" data-duel="${m.pid}" type="button">⚔ Duel</button>` : ''}</span></div>`).join('');
+    $('#party-list').innerHTML = p.members.map((m) => `<div><span>${m.leader ? '👑 ' : ''}${esc(m.name)}${m.pid === myPid ? ' (you)' : ''}</span><span>Lv ${m.sync ? `${m.sync} <span title="Synced down from ${m.level}">⇣${m.level}</span>` : m.level} ${m.mic ? '🎙' : ''}${!p.solo && m.pid !== myPid ? ` <button class="btn small" data-duel="${m.pid}" type="button">⚔ Duel</button>` : ''}</span></div>`).join('');
     $$('#party-list [data-duel]').forEach((b) => b.addEventListener('click', () => { const m = p.members.find((x) => x.pid === b.dataset.duel); if (m) this.openDuelSetup(m); }));
   }
 
@@ -341,8 +341,8 @@ export class UI {
       const row = (k, label, help) => `<div class="attr"><div class="lab">${label}<small>${help}</small></div><b>${d[k]}</b><button class="plus-btn" data-stat="${k}" ${ch.statPts > 0 ? '' : 'disabled'} type="button" aria-label="Add ${label}">+</button></div>`;
       $('#stats-body').innerHTML = `
         <h2 style="margin-bottom:4px">${esc(ch.name)}</h2>
-        <div class="muted" style="margin-bottom:10px">Level ${ch.level} ${CLASSES[ch.cls].name} · ${fmt(ch.xp)} / ${fmt(this.next)} XP · Deepest floor ${ch.maxFloor}</div>
-        ${d.sync ? `<div class="sync-note">⇣ Synced to level ${d.sync} on this floor: stats and gear are scaled down to match its monsters, skills are kept, and you earn +${Math.round(SYNC.xpBonus * 100)}% XP.</div>` : ''}
+        <div class="muted" style="margin-bottom:10px">Level ${d.sync ? `${d.sync} (synced down from ${ch.level})` : ch.level} ${CLASSES[ch.cls].name} · ${fmt(ch.xp)} / ${fmt(this.next)} XP · Deepest floor ${ch.maxFloor}</div>
+        ${d.sync ? `<div class="sync-note">⇣ Synced to level ${d.sync} to match the lowest-level hero in your group (or this floor): stats and gear are scaled down, all your skills are kept, and you earn +${Math.round(SYNC.xpBonus * 100)}% XP.</div>` : ''}
         ${ch.statPts > 0 ? `<div class="pts">${ch.statPts} attribute point${ch.statPts > 1 ? 's' : ''} to spend</div>` : ''}
         ${row('str', 'Strength', '+1.5% damage per point')}
         ${row('dex', 'Dexterity', 'Critical chance and armor')}
