@@ -437,6 +437,7 @@ export class Game {
     if (rank < 1) { this.ui.msg(this.char.level < sk.unlock ? `${sk.name} unlocks at level ${sk.unlock}` : `Spend a skill point on ${sk.name} first`, 'warn'); this.sfx.play('error'); return; }
     if ((this.cds[id] || 0) > t) return;
     if (this.mp < sk.mana(rank)) { this.ui.msg('Not enough mana', 'warn'); this.sfx.play('error'); return; }
+    if (sk.needsShield && !this.char.equip.offhand) { this.ui.msg(`${sk.name} needs a shield`, 'warn'); this.sfx.play('error'); return; }
     const rot = this.aimRot();
     this.me.rot = rot;
     this.cds[id] = t + sk.cd;

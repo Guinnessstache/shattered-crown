@@ -113,12 +113,15 @@ export class UI {
       const rank = this.char.skills[id] || 0;
       const s = SKILLS[id];
       el.classList.toggle('locked', rank < 1);
-      el.classList.toggle('nomana', rank >= 1 && mp < s.mana(rank));
+      const noShield = !!(s.needsShield && !this.char.equip.offhand);
+      el.classList.toggle('nomana', rank >= 1 && (noShield || mp < s.mana(rank)));
+      const tip = noShield ? `${s.name} (needs a shield)` : s.name;
+      if (el.title !== tip) el.title = tip;
       const left = Math.max(0, (cds[id] || 0) - now);
       el.querySelector('.cd').style.transform = `scaleY(${left / s.cd})`;
       el.querySelector('.cdt').textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
       const t = this.touchSkills[i];
-      if (t) { t.classList.toggle('locked', rank < 1); t.querySelector('.cd').style.setProperty('--p', `${(left / s.cd) * 100}%`); }
+      if (t) { t.classList.toggle('locked', rank < 1 || noShield); t.querySelector('.cd').style.setProperty('--p', `${(left / s.cd) * 100}%`); }
     });
   }
 

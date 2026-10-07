@@ -36,7 +36,7 @@ if (cls === 'knight' && !q.get('weapon')) look.offhand = { kind: 'shield', tier:
 if (q.get('old')) Models.skinnedHeroes.enabled = false;
 const hero = buildHero(cls, look);
 scene.add(hero);
-const anim = hero.userData.rig === 'skinned' ? new SkinnedAnimator(hero) : { update() {}, revive() {}, die() {}, hit() {}, play() {}, speed: 0 };
+const anim = hero.userData.rig === 'skinned' ? new SkinnedAnimator(hero) : new Models.Animator(hero, { stride: 1.7 });
 const ACTIONS = ['idle', 'walk', 'run', 'swing', 'cleave', 'bash', 'charge', 'warcry', 'cast', 'throw', 'leap', 'frenzy', 'whirlwind', 'hit', 'death'];
 let cur = q.get('action') || 'idle';
 const bar = document.getElementById('bar');

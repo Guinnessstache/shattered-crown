@@ -230,6 +230,7 @@ export class Zone {
     const rank = p.member.char.skills?.[id] || 0;
     if (!sk || rank < 1 || !CLASSES[p.cls]?.skills.includes(id)) return;
     if ((p.cds[id] || 0) > this.time + 0.06) return;
+    if (sk.needsShield && !p.member.char.equip?.offhand) { this.party.emitTo(pid, 'msg', { text: `${sk.name} needs a shield`, kind: 'warn' }); return; }
     const cost = sk.mana(rank);
     if (p.mp < cost) { this.party.emitTo(pid, 'msg', { text: 'Not enough mana', kind: 'warn' }); return; }
     p.mp -= cost;
@@ -616,7 +617,7 @@ export class Zone {
     this.takeLoot(p, e);
   }
 
-  takeLoot(p, e) {
+  takeLoot(p, e, auto = false) {
     const ch = p.member.char;
     if (e.gold) { ch.gold += e.gold; this.party.emitTo(p.pid, 'gold', { gold: ch.gold, got: e.gold }); }
     else if (e.mat && MATERIALS[e.mat]) {
@@ -625,7 +626,11 @@ export class Zone {
       this.party.emitTo(p.pid, 'mats', { mats: ch.mats, got: { mat: e.mat, n: e.n } });
     }
     else if (e.potion) {
-      if (ch.potions[e.potion] >= MAX_POTIONS) { this.party.emitTo(p.pid, 'msg', { text: 'Potion belt is full', kind: 'warn' }); return; }
+      if (ch.potions[e.potion] >= MAX_POTIONS) {
+        // Standing on a potion with a full belt: auto-pickup retries every tick, so only say so every few seconds.
+        if (!auto || !(e.fullWarnAt > this.time - 6)) { e.fullWarnAt = this.time; this.party.emitTo(p.pid, 'msg', { text: 'Potion belt is full', kind: 'warn' }); }
+        return;
+      }
       ch.potions[e.potion]++;
       this.party.emitTo(p.pid, 'potions', ch.potions);
     } else if (e.item) {
@@ -1065,7 +1070,7 @@ export class Zone {
       p.mp = Math.min(p.stats.mpMax, p.mp + p.stats.mpRegen * dt * (fast ? 10 : 1));
       // Auto-pickup gold and potions you walk over.
       for (const e of this.ents.values()) {
-        if (e.k === 'l' && e.owner === p.pid && !e.item && Math.hypot(e.x - p.x, e.y - p.y) < 1.4) this.takeLoot(p, e);
+        if (e.k === 'l' && e.owner === p.pid && !e.item && Math.hypot(e.x - p.x, e.y - p.y) < 1.4) this.takeLoot(p, e, true);
       }
     }
 

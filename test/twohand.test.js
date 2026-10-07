@@ -45,10 +45,18 @@ test('equipping a two-hander moves the shield to the pack, and back', async () =
   assert.equal(ch.equip.weapon.base, 'greatsword');
   assert.equal(ch.equip.offhand, null, 'shield came off');
   assert.ok(ch.inv.some((x) => x?.base === 'shield') && ch.inv.some((x) => x?.base === 'sword'), 'sword and shield are in the pack');
+  // Shield Bash needs a shield
+  await call(s, 'dev', { cmd: 'xp', n: 400 }); await sleep(150);
+  assert.ok((await call(s, 'inv', { op: 'skill', skill: 'bash' })).ok); await sleep(150);
+  const msgs = []; s.on('msg', (m) => msgs.push(m.text));
+  s.emit('skill', { id: 'bash', rot: 0 }); await sleep(250);
+  assert.ok(msgs.some((t) => /needs a shield/.test(t)), 'bash refused without a shield');
   // put the shield back on: the greatsword comes off
   const shIdx = ch.inv.findIndex((x) => x?.base === 'shield');
   assert.ok((await call(s, 'inv', { op: 'equip', idx: shIdx })).ok); await sleep(150);
   assert.equal(ch.equip.offhand.base, 'shield'); assert.equal(ch.equip.weapon, null, 'two-hander came off');
+  msgs.length = 0; s.emit('skill', { id: 'bash', rot: 0 }); await sleep(250);
+  assert.ok(!msgs.some((t) => /needs a shield/.test(t)), 'bash works with a shield');
   // sword back in hand, pack full: the greatsword swap is refused and nothing is lost
   assert.ok((await call(s, 'inv', { op: 'equip', idx: ch.inv.findIndex((x) => x?.base === 'sword') })).ok); await sleep(150);
   const gs2 = ch.inv.findIndex((x) => x?.base === 'greatsword');

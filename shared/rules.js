@@ -72,8 +72,8 @@ export const SKILLS = {
     mana: (r) => 7 + r, cd: 2.2, range: 3.0, arc: 200, mult: (r) => 1.5 + 0.15 * (r - 1),
   },
   bash: {
-    name: 'Shield Bash', key: 2, unlock: 2, max: 10, icon: '🛡',
-    desc: (r) => `Slam enemies in front of you for ${120 + 12 * (r - 1)}% damage, knocking them back and stunning them for ${(1.2 + 0.15 * (r - 1)).toFixed(1)}s.`,
+    name: 'Shield Bash', key: 2, unlock: 2, max: 10, icon: '🛡', needsShield: true,
+    desc: (r) => `Slam enemies in front of you with your shield for ${120 + 12 * (r - 1)}% damage, knocking them back and stunning them for ${(1.2 + 0.15 * (r - 1)).toFixed(1)}s. Needs a shield.`,
     mana: (r) => 6 + r, cd: 4.5, range: 2.6, arc: 80, mult: (r) => 1.2 + 0.12 * (r - 1), stun: (r) => 1.2 + 0.15 * (r - 1),
   },
   charge: {
