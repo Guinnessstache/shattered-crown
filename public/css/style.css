@@ -441,3 +441,6 @@ body.pad-on .screen button:focus, body.pad-on .screen input:focus, body.pad-on #
 .class-list { grid-template-columns: 1fr 1fr; }
 @media (max-width: 560px) { .class-list { grid-template-columns: 1fr; } }
 .class-opt .ci { font-family: initial; }
+.skill.atk { border-color: rgba(227,184,102,.55); }
+body.touch-on .skill.atk { display: none; }
+body.cam-drag, body.cam-drag canvas { cursor: grabbing; }

@@ -48,6 +48,14 @@ export class UI {
     const bar = $('#skillbar');
     bar.innerHTML = '';
     this.skillEls = [];
+    // Basic attack button: hold it (or Space) to keep attacking.
+    const atk = document.createElement('button');
+    atk.className = 'skill atk'; atk.title = 'Attack (hold)';
+    atk.innerHTML = '<span>🗡</span><span class="key">Space</span>';
+    atk.addEventListener('pointerdown', (e) => { e.preventDefault(); this.h.holdAttack?.(true); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) atk.addEventListener(ev, () => this.h.holdAttack?.(false));
+    bar.appendChild(atk);
+    this.atkEl = atk;
     ['cleave', 'bash', 'charge', 'warcry'].forEach((id, i) => {
       const s = SKILLS[id];
       const el = document.createElement('button');
@@ -83,6 +91,7 @@ export class UI {
     document.body.classList.toggle('pad-on', src === 'pad');
     const G = src === 'pad' ? PAD_GLYPH : KEY_GLYPH;
     this.skillEls.forEach((s, i) => { s.el.querySelector('.key').textContent = G[`skill${i}`]; });
+    this.atkEl.querySelector('.key').textContent = G.attack;
     this.pot_hp.querySelector('.key').textContent = G.hp; this.pot_mp.querySelector('.key').textContent = G.mp;
     this.useGlyph = src === 'pad' ? PAD_GLYPH.use : KEY_GLYPH.use;
   }
@@ -572,7 +581,7 @@ export class UI {
   controlsHelp(src) {
     $('#controls-help').innerHTML = src === 'pad'
       ? 'Left stick move · Right stick turn / tilt camera · D-pad ▲▼ zoom · <kbd>A</kbd> attack · <kbd>X</kbd><kbd>Y</kbd><kbd>B</kbd><kbd>RB</kbd> skills · <kbd>LT</kbd>/<kbd>RT</kbd> potions · <kbd>LB</kbd> use / pick up · <kbd>View</kbd> character · <kbd>Menu</kbd> menu<br>In menus: D-pad or left stick to move · <kbd>A</kbd> select · <kbd>X</kbd> equip / buy · <kbd>Y</kbd> drop (sell in shops) · <kbd>LB</kbd>/<kbd>RB</kbd> tabs · <kbd>B</kbd> back'
-      : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Left click</kbd>/<kbd>Space</kbd> attack · <kbd>Right click</kbd> Cleave · <kbd>Hold right button + move mouse</kbd> turn camera · <kbd>1</kbd>–<kbd>4</kbd> skills · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> also turn camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
+      : '<kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>Space</kbd> or 🗡 button attack · <kbd>1</kbd>–<kbd>4</kbd> or skill buttons use skills (aimed at the cursor) · <kbd>Hold a mouse button + drag</kbd> turn camera · <kbd>Q</kbd>/<kbd>R</kbd> potions · <kbd>E</kbd> use / pick up · <kbd>I</kbd> character · <kbd>Z</kbd>/<kbd>X</kbd> also turn camera · <kbd>Wheel</kbd> zoom · <kbd>Tab</kbd> map · <kbd>Enter</kbd> chat · <kbd>V</kbd> push-to-talk';
   }
 
   // ------------------------------------------------------------ controller navigation in panels

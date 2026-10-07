@@ -3,7 +3,7 @@
 
 const BUTTONS = ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'view', 'menu', 'ls', 'rs', 'up', 'down', 'left', 'right', 'home'];
 export const PAD_GLYPH = { attack: 'A', skill0: 'X', skill1: 'Y', skill2: 'B', skill3: 'RB', hp: 'LT', mp: 'RT', use: 'LB' };
-export const KEY_GLYPH = { attack: 'LMB', skill0: '1', skill1: '2', skill2: '3', skill3: '4', hp: 'Q', mp: 'R', use: 'E' };
+export const KEY_GLYPH = { attack: 'Space', skill0: '1', skill1: '2', skill2: '3', skill3: '4', hp: 'Q', mp: 'R', use: 'E' };
 
 export class Input {
   constructor(canvas, handlers) {
@@ -48,16 +48,17 @@ export class Input {
       if (k === ' ') this.attackHeld = false;
       if (k === 'v') this.h.onAction('ptt', false);
     });
-    addEventListener('blur', () => { this.keys.clear(); this.attackHeld = false; });
+    addEventListener('blur', () => { this.keys.clear(); this.attackHeld = false; this.lmb = null; });
     canvas.addEventListener('mousemove', (e) => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.inside = true; if (this.source !== 'touch') this.setSource('keyboard'); });
     canvas.addEventListener('mouseleave', () => { this.mouse.inside = false; });
+    // The mouse never attacks: it's free for menus, aiming and the camera.
+    // Hold either button and drag to turn the camera (and tilt it with up/down).
+    // The right button captures the cursor while held; the left button just drags.
     canvas.addEventListener('mousedown', (e) => {
       if (e.sourceCapabilities?.firesTouchEvents || this.source === 'touch') return;
       this.setSource('keyboard');
       this.mouse.x = e.clientX; this.mouse.y = e.clientY;
-      if (e.button === 0) { this.attackHeld = true; this.h.onAction('attack', true); }
-      // Right button: hold and drag to turn the camera (mouse is captured while held);
-      // a quick click without dragging still uses Cleave.
+      if (e.button === 0) this.lmb = { x: e.clientX, y: e.clientY };
       if (e.button === 2) {
         this.rmb = { t: performance.now(), moved: 0 };
         try { canvas.requestPointerLock?.({ unadjustedMovement: true })?.catch?.(() => canvas.requestPointerLock?.()); } catch { /* not supported */ }
@@ -65,27 +66,35 @@ export class Input {
       if (e.button === 1) { this.dragging = { x: e.clientX }; e.preventDefault(); }
     });
     addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.attackHeld = false;
+      if (e.button === 0) { this.lmb = null; document.body.classList.remove('cam-drag'); }
       if (e.button === 1) this.dragging = null;
       if (e.button === 2 && this.rmb) {
-        const quick = this.rmb.moved < 8 && performance.now() - this.rmb.t < 350;
         this.rmb = null;
         if (document.pointerLockElement) document.exitPointerLock?.();
-        if (quick) this.h.onAction('skill0', true);
       }
     });
     addEventListener('mousemove', (e) => {
       if (this.dragging) { this.h.onCamera(-(e.clientX - this.dragging.x) * 0.008, 0); this.dragging.x = e.clientX; }
+      if (this.lmb) {
+        const dx = e.clientX - this.lmb.x; const dy = e.clientY - this.lmb.y;
+        this.lmb.x = e.clientX; this.lmb.y = e.clientY;
+        document.body.classList.add('cam-drag');
+        this.h.onCamera(-dx * 0.006, 0, dy * 0.004 * (this.opts.invertY ? -1 : 1));
+      }
       if (this.rmb) {
         let mx = e.movementX || 0; let my = e.movementY || 0;
         // Some browsers report a big jump when the mouse is captured; ignore those spikes.
         if (Math.abs(mx) > 150 || Math.abs(my) > 150) { mx = 0; my = 0; }
         this.rmb.moved += Math.abs(mx) + Math.abs(my);
-        if (this.rmb.moved >= 8) this.h.onCamera(-mx * 0.006, 0, my * 0.004 * (this.opts.invertY ? -1 : 1));
+        this.h.onCamera(-mx * 0.006, 0, my * 0.004 * (this.opts.invertY ? -1 : 1));
       }
     });
     // If the browser drops the capture (Esc, alt-tab), stop turning.
-    document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && this.rmb) this.rmb = null; });
+    document.addEventListener('pointerlockchange', () => {
+      if (!document.pointerLockElement && this.rmb) this.rmb = null;
+      // A quick right-click can finish before the browser grants the capture: let go straight away.
+      if (document.pointerLockElement && !this.rmb) document.exitPointerLock?.();
+    });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => { this.h.onCamera(0, Math.sign(e.deltaY) * 1.2); e.preventDefault(); }, { passive: false });
   }
@@ -210,5 +219,6 @@ export class Input {
     return { x, y };
   }
 
+  holdAttack(on) { this.attackHeld = !!on; if (on) this.h.onAction('attack', true); }
   attacking() { return this.enabled && (this.attackHeld || this.padAttack); }
 }
