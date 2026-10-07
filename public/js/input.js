@@ -187,8 +187,12 @@ export class Input {
       const d = Math.hypot(dx, dy);
       if (d > R) { dx = dx / d * R; dy = dy / d * R; }
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
-      const m = Math.min(1, d / R);
-      this.touchMove = d > 6 ? { x: (dx / Math.max(d, 1)) * m, y: (-dy / Math.max(d, 1)) * m } : { x: 0, y: 0 };
+      // Speed: a small dead zone, a short walking band, then full speed from about a third of the
+      // way out, so a thumb that isn't perfectly placed still runs at full pace.
+      const DEAD = 7; const FULL = R * 0.38;
+      const k = Math.min(1, Math.max(0, (Math.hypot(e.clientX - ox, e.clientY - oy) - DEAD) / (FULL - DEAD)));
+      const m = k * k * (3 - 2 * k);
+      this.touchMove = m > 0 ? { x: (dx / Math.max(d, 1)) * m, y: (-dy / Math.max(d, 1)) * m } : { x: 0, y: 0 };
     });
     const end = (e) => { if (e.pointerId !== id) return; id = null; this.touchMove = { x: 0, y: 0 }; home(); };
     zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end);
