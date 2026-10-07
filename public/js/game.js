@@ -2,6 +2,8 @@
 import { buildMap, moveCircle, TILE, T, toTile } from '/shared/map.js';
 import { SKILLS, CLASSES, xpToNext, MONSTERS, RARITY_COLOR, MATERIALS } from '/shared/rules.js';
 
+const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 const PLAYER_R = 0.45;
 const now = () => performance.now() / 1000;
 
@@ -554,9 +556,10 @@ export class Game {
     this.ui.skills(this.cds, t, this.mp);
     const usable = this.ui.anyOpen() ? null : this.findUsable();
     this.ui.prompt(usable?.text || null);
-    // Item card for loot under the mouse, or the item you're standing next to.
+    // Item card for loot under the mouse, or the item you're standing next to. Not on touch
+    // screens: there the card would cover the fight; details show in the pack after pickup.
     let lootV = null;
-    if (!this.ui.anyOpen()) {
+    if (!this.ui.anyOpen() && !(COARSE && this.ui.source !== 'pad')) {
       if (this.hoverLoot && W.ents.has(this.hoverLoot)) lootV = W.ents.get(this.hoverLoot);
       else if (usable?.kind === 'loot') lootV = W.ents.get(usable.id);
     }

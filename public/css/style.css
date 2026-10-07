@@ -471,3 +471,10 @@ body.cam-drag, body.cam-drag canvas { cursor: grabbing; }
 .dmg.el-poison { color: #7aff5a; }
 .dmg.el-thorns { color: #a8d060; }
 .dmg.dot { font-size: 13px; opacity: .9; }
+
+/* Touch screens: smaller ground-loot labels that taps pass straight through, so they don't
+   block the view or steal taps in combat. */
+@media (pointer: coarse) {
+  .lbl { font-size: 10px; padding: 1px 4px; pointer-events: none; }
+  .lbl.legendary { border-width: 1px; }
+}
