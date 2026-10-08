@@ -1,4 +1,5 @@
 // Entry point: sign-in, hero select, and the main loop.
+import { GroupFinder } from './groups.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
 import { World } from './render/world.js';
 import * as Models from './render/models.js';
@@ -51,6 +52,7 @@ const ui = new UI({
   bank: (d) => new Promise((res) => socket.emit('bank', d, (r) => res(r || { error: 'No reply from server' }))),
   mail: (d) => new Promise((res) => socket.emit('mail', d, (r) => res(r || { error: 'No reply from server' }))),
   vkb: (el) => openVkb(el),
+  listParty: (d) => socket.emit('listParty', d, (r) => { if (!r?.ok) { ui.msg(r?.error || 'Could not change that', 'warn'); sfx.play('error'); } }),
   leave: () => leaveGame(),
   nearShop: () => game?.nearShop(),
   panelsChanged: (open) => { if (open) { sfx.play('click'); if (!$('#menu-panel').classList.contains('hidden')) fillDevices(); } },
@@ -176,6 +178,7 @@ function connect() {
   });
   socket.on('connect', () => { $('#select-error').textContent = ''; if (!game) loadChars(); });
   socket.on('kicked', (d) => { alert(d.reason); });
+  socket.on('online', (d) => setOnline(d.n));
   socket.on('announce', (d) => { ui.chatLine('', `📣 ${d.text}`, true); ui.center(d.text, 5000); });
   socket.on('disconnect', () => {
     if (game) { ui.msg('Connection lost — reconnecting…', 'warn'); }
@@ -304,6 +307,39 @@ document.addEventListener('click', (e) => { const b = e.target.closest?.('#hud b
 $('#rotate-fs').addEventListener('click', () => enterFullscreen());
 $('#ios-tip-x').addEventListener('click', () => { $('#ios-tip').classList.add('hidden'); store.set('iosTip', '1'); });
 
+// Players online (top right in game, under the play buttons on the hero screen) and the group finder.
+function setOnline(n) {
+  $('#online-btn b').textContent = n;
+  $('#title-online').textContent = `${n} player${n === 1 ? '' : 's'} online`;
+}
+const groups = new GroupFinder({ ui, socket: () => socket, inGame: () => !!game, join: (code) => (game ? switchParty(code) : play('join', code)) });
+for (const id of ['online-btn', 'find-group-btn', 'party-find']) $(`#${id}`).addEventListener('click', () => groups.open());
+$('#host-listed').checked = store.get('hostListed', '1') === '1';
+$('#host-listed').addEventListener('change', (e) => store.set('hostListed', e.target.checked ? '1' : '0'));
+
+// Join another party from inside a game: the server moves this hero over.
+function switchParty(code) {
+  if (!selected) return;
+  socket.emit('play', { charId: selected, mode: 'join', code }, (r) => {
+    if (!r?.ok) { ui.msg(r?.error || 'Could not join that party', 'warn'); sfx.play('error'); return; }
+    game?.destroy(); game = null;
+    voice?.closeAll(); $('#mic-btn').classList.remove('on'); $('#voice-toggle').checked = false;
+    ui.closePanels();
+    startGame(r);
+    ui.msg(`Joined ${r.code}`, 'good');
+  });
+}
+
+function startGame(r) {
+  if (preview) { world.remove(preview); preview = null; }
+  voice.setMyPid(r.pid);
+  game = new Game({ socket, world, input, ui, sfx, music, voice, me: r });
+  show('hud');
+  ui.setTouch(touchOn);
+  world.targetDist = 15;
+  checkOrientation();
+}
+
 async function play(mode, code) {
   if (!selected) return;
   if (coarse) enterFullscreen(); // must happen in the tap that starts the game
@@ -313,16 +349,10 @@ async function play(mode, code) {
   $('#fade').classList.add('on');
   // The animated hero models load in the background; give a slow connection a few seconds.
   await Promise.race([Models.heroModelsReady, new Promise((r) => setTimeout(r, 6000))]);
-  socket.emit('play', { charId: selected, mode, code }, (r) => {
+  socket.emit('play', { charId: selected, mode, code, listed: mode === 'host' && $('#host-listed').checked }, (r) => {
     if (!r?.ok) { $('#fade').classList.remove('on'); $('#select-error').textContent = r?.error || 'Could not start'; return; }
-    if (preview) { world.remove(preview); preview = null; }
-    voice.setMyPid(r.pid);
-    game = new Game({ socket, world, input, ui, sfx, music, voice, me: r });
-    show('hud');
-    ui.setTouch(touchOn);
-    world.targetDist = 15;
+    startGame(r);
     if (!r.solo) ui.msg(`Party code: ${r.code} — share it so friends can join`, 'good');
-    checkOrientation();
   });
 }
 
@@ -395,6 +425,7 @@ $('#ptt-toggle').addEventListener('change', (e) => { voice?.setPtt(e.target.chec
 const vkbOpen = () => !$('#vkb').classList.contains('hidden');
 function titleRoot() {
   if (vkbOpen()) return $('#vkb');
+  if (!$('#groups-panel').classList.contains('hidden')) return $('#groups-panel');
   if (!$('#create-modal').classList.contains('hidden')) return $('#create-modal');
   return ['auth', 'select'].map((id) => $(`#${id}`)).find((el) => !el.classList.contains('hidden')) || null;
 }
@@ -419,6 +450,7 @@ function titlePad(name) {
       setTimeout(focusTitle, 50);
       return;
     }
+    if (name === 'skill2' && root.id === 'groups-panel') { groups.close(); setTimeout(focusTitle, 0); return; }
     if (name === 'skill2') { // B: back out of the new-hero window
       if (root.id === 'create-modal') { $('#create-modal').classList.add('hidden'); if (chars.some((c) => c.id === selected)) selectHero(selected); setTimeout(focusTitle, 0); }
       return;

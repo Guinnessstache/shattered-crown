@@ -45,6 +45,7 @@ export class UI {
     // spatial navigation for controllers inside panels
     this.focusIdx = 0;
     this.bankUI = new BankUI(this, (d) => this.h.bank(d));
+    this.bindPartyListing();
     this.mailUI = new MailUI(this, (d) => this.h.mail(d));
   }
 
@@ -240,6 +241,19 @@ export class UI {
     $('#copy-code')?.addEventListener('click', () => { navigator.clipboard?.writeText(p.code).then(() => this.msg('Party code copied', 'good')).catch(() => {}); });
     $('#party-list').innerHTML = p.members.map((m) => `<div><span>${m.leader ? '👑 ' : ''}${esc(m.name)}${m.pid === myPid ? ' (you)' : ''}</span><span>Lv ${m.sync ? `${m.sync} <span title="Synced down from ${m.level}">⇣${m.level}</span>` : m.level} ${m.mic ? '🎙' : ''}${!p.solo && m.pid !== myPid ? ` <button class="btn small" data-duel="${m.pid}" type="button">⚔ Duel</button>` : ''}</span></div>`).join('');
     $$('#party-list [data-duel]').forEach((b) => b.addEventListener('click', () => { const m = p.members.find((x) => x.pid === b.dataset.duel); if (m) this.openDuelSetup(m); }));
+    // Leader: list the party in the group finder, with a note.
+    const lead = !p.solo && p.leader === myPid;
+    $('#party-listing').classList.toggle('hidden', !lead);
+    if (lead) {
+      $('#party-listed').checked = !!p.listed;
+      if (document.activeElement !== $('#party-note')) $('#party-note').value = p.note || '';
+    }
+  }
+  bindPartyListing() {
+    const send = () => this.h.listParty({ on: $('#party-listed').checked, note: $('#party-note').value });
+    $('#party-listed').addEventListener('change', send);
+    $('#party-note-save').addEventListener('click', () => { send(); this.msg('Party note saved', 'good'); });
+    $('#party-note').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { send(); e.target.blur(); } });
   }
 
   // ------------------------------------------------------------ duels
@@ -286,7 +300,7 @@ export class UI {
   // ------------------------------------------------------------ panels
   anyOpen() { return $$('.sheet:not(.hidden), .modal:not(.hidden)').some((m) => m.id !== 'create-modal'); }
   closePanels() {
-    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'bank-panel', 'mail-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite', 'admin-panel']) $(`#${id}`).classList.add('hidden');
+    for (const id of ['char-panel', 'shop-panel', 'craft-panel', 'ah-panel', 'bank-panel', 'mail-panel', 'groups-panel', 'gate-panel', 'party-panel', 'menu-panel', 'duel-setup', 'duel-invite', 'admin-panel']) $(`#${id}`).classList.add('hidden');
     this.sel = null; this.shopSel = null;
     $('#tooltip').classList.add('hidden');
     // Let go of whatever control had focus inside the closed window.
@@ -689,7 +703,7 @@ export class UI {
   // A stable selector for the focused control, so focus survives a panel redraw.
   focusKey(el) {
     if (!el || !this.openPanelEl()?.contains(el)) return null;
-    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv', 'atab', 'ahrow', 'ahsell', 'ahcancel', 'btab', 'bslot', 'bpack', 'mtab', 'mrow', 'matt', 'mgold', 'mcontact', 'mdetach', 'mpack']) {
+    for (const k of ['inv', 'eq', 'buy', 'sell', 'stat', 'skill', 'pot', 'floor', 'tab', 'ctab', 'base', 'recipe', 'salv', 'atab', 'ahrow', 'ahsell', 'ahcancel', 'btab', 'bslot', 'bpack', 'mtab', 'mrow', 'matt', 'mgold', 'mcontact', 'mdetach', 'mpack', 'gjoin']) {
       if (el.dataset[k] !== undefined) return { attr: k, val: el.dataset[k], n: el.dataset.n };
     }
     return el.id ? { id: el.id } : null;

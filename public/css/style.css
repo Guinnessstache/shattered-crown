@@ -577,3 +577,26 @@ body.pad-on, body.pad-on * { cursor: none !important; }
 
 /* messages shown above an open window (the HUD sits underneath windows) */
 .toasts { position: fixed; top: calc(10px + var(--safe-t)); left: 0; right: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+
+/* players online + group finder */
+.online-pill { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: rgba(0,0,0,.55); color: var(--ink); border-radius: 12px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.online-pill i, .title-online i { width: 8px; height: 8px; border-radius: 50%; background: #5fdc7a; box-shadow: 0 0 6px #5fdc7a; display: inline-block; }
+.online-pill b { color: #fff; }
+.title-online { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.host-listed { justify-content: center; font-size: 13px; margin: -2px 0 2px; color: var(--muted); }
+.groups-inner { width: min(640px, 100%); }
+.groups-inner header h2 { margin: 0; }
+.groups-list { display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+.group-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,.3); }
+.group-row .gt { font-weight: 700; color: #ffd76a; }
+.group-row .gt small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.group-row .gn { grid-column: 1; font-size: 13px; font-style: italic; color: var(--ink); }
+.group-row .gm { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px; }
+.group-row .gm span { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+.group-row .gj { grid-column: 2; grid-row: 1 / span 3; }
+.group-row.mine { border-color: var(--gold); }
+.party-listing { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0,0,0,.25); }
+.party-note { display: flex; gap: 6px; }
+.party-note input { flex: 1; min-width: 0; background: rgba(0,0,0,.45); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; }
+#party-find { width: 100%; margin-top: 8px; }
+@media (max-width: 760px), (max-height: 520px) { .online-pill { font-size: 11px; padding: 2px 7px; } }

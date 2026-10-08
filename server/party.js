@@ -9,6 +9,8 @@ import {
 import { lookOf } from './db.js';
 
 export const parties = new Map();
+export function listGroups() { return [...parties.values()].filter((p) => p.listed && !p.solo && p.members.size).map((p) => p.listing()).sort((a, b) => a.full - b.full || b.size - a.size); }
+export function onlineCount() { let n = 0; for (const p of parties.values()) n += p.members.size; return n; }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function newCode() {
@@ -51,10 +53,12 @@ export class Member {
 }
 
 export class Party {
-  constructor(io, db, { solo = false } = {}) {
+  constructor(io, db, { solo = false, listed = false } = {}) {
     this.io = io; this.db = db;
     this.code = newCode();
     this.solo = solo;
+    this.listed = !solo && !!listed; // shown in the group finder
+    this.note = '';
     this.members = new Map();
     this.leader = null;
     this.zone = null;
@@ -73,7 +77,30 @@ export class Party {
   roster() {
     return [...this.members.values()].map((m) => ({ pid: m.pid, name: m.char.name, cls: m.char.cls, level: m.char.level, sync: m.synced ? m.syncCap : 0, leader: m.pid === this.leader, mic: !!m.media.mic }));
   }
-  sendRoster() { this.broadcast('party', { code: this.code, solo: this.solo, leader: this.leader, members: this.roster() }); }
+  sendRoster() { this.broadcast('party', { code: this.code, solo: this.solo, leader: this.leader, members: this.roster(), listed: this.listed, note: this.note }); }
+
+  // The leader lists the party in the group finder (with a short note: "Floor 8, need a healer").
+  setListing(pid, on, note) {
+    if (this.solo) return 'Solo games can\'t be listed. Host a co-op party instead';
+    if (pid !== this.leader) return 'Only the party leader can do that';
+    this.listed = !!on;
+    if (note !== undefined) this.note = String(note ?? '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 48);
+    this.sendRoster();
+    return null;
+  }
+  // What the group finder shows about this party.
+  listing() {
+    const spec = this.zone?.spec;
+    const lv = [...this.members.values()].map((m) => m.char.level);
+    const lead = this.members.get(this.leader);
+    return {
+      code: this.code, leader: lead?.char.name || '?', note: this.note,
+      where: !spec || spec.kind === 'town' ? 'In town' : `Floor ${spec.floor}`,
+      size: this.members.size, max: PARTY_MAX, full: this.full,
+      minLevel: Math.min(...lv), maxLevel: Math.max(...lv),
+      members: [...this.members.values()].map((m) => ({ name: m.char.name, cls: m.char.cls, level: m.char.level, leader: m.pid === this.leader })),
+    };
+  }
 
   add(member) {
     this.members.set(member.pid, member);

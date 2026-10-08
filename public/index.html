@@ -70,6 +70,8 @@
           <div id="play-buttons" class="play-buttons hidden">
             <button id="solo-btn" class="btn gold big" type="button">Play solo</button>
             <button id="host-btn" class="btn big" type="button">Host co-op party</button>
+            <label class="chk host-listed"><input type="checkbox" id="host-listed" checked /> List my party in the group finder</label>
+            <button id="find-group-btn" class="btn big" type="button">🔍 Find a group</button>
             <div class="join-row">
               <input id="join-code" class="code-input" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" />
               <button id="join-btn" class="btn green" type="button">Join</button>
@@ -77,6 +79,7 @@
             <button id="delete-hero-btn" class="btn small ghost danger" type="button">Delete hero</button>
           </div>
           <p id="select-error" class="error"></p>
+          <p class="title-online"><i></i><span id="title-online">…</span></p>
           <div class="pad-hints"><b>A</b> Select · <b>X</b> New hero · <b>Y</b> Join code</div>
         </div>
       </div>
@@ -113,6 +116,7 @@
     <div class="top-right">
       <canvas id="minimap" width="180" height="180"></canvas>
       <div id="zone-name" class="zone-name"></div>
+      <button id="online-btn" class="online-pill" type="button" title="Players online — open the group finder"><i></i><b>0</b> online</button>
       <div class="top-buttons">
         <button id="fs-btn" class="hbtn" title="Full screen">⛶</button>
         <button id="party-btn" class="hbtn" title="Party &amp; voice">👥<span id="party-code-badge"></span></button>
@@ -345,11 +349,26 @@
       <h2>Party</h2>
       <div id="party-code-line" class="party-code-line"></div>
       <div id="party-list" class="party-list"></div>
+      <div id="party-listing" class="party-listing hidden">
+        <label class="chk"><input type="checkbox" id="party-listed" /> List this party in the group finder</label>
+        <div class="party-note"><input id="party-note" maxlength="48" placeholder="Note, e.g. Floor 8, all welcome" autocomplete="off"><button class="btn small" id="party-note-save" type="button">Save</button></div>
+      </div>
+      <button class="btn" id="party-find" type="button">🔍 Find a group</button>
       <label class="chk"><input type="checkbox" id="voice-toggle" /> Voice chat (microphone)</label>
       <label class="chk"><input type="checkbox" id="ptt-toggle" /> Push-to-talk (hold V)</label>
       <p class="muted" style="font-size:12px;margin:6px 0 0">Microphone, speakers and volume are in ☰ Menu → Voice &amp; audio.</p>
       <div class="pad-hints"><b>A</b> Select · <b>B</b> Close</div>
       <div class="row-end"><button class="btn ghost" data-close type="button">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Group finder -->
+  <div id="groups-panel" class="sheet hidden">
+    <div class="sheet-inner panel groups-inner">
+      <header><h2>Find a group</h2><button class="btn small ghost" data-close type="button">✕</button></header>
+      <p id="groups-status" class="muted" style="margin:0 0 10px;font-size:13px"></p>
+      <div id="groups-list" class="groups-list"></div>
+      <div class="row-end"><button class="btn" id="groups-refresh" type="button">Refresh</button><button class="btn ghost" data-close type="button">Close</button></div>
     </div>
   </div>
 

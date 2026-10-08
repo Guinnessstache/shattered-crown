@@ -148,6 +148,14 @@ Wrong passwords are limited to 5 tries per 10 minutes per IP. Every admin action
 - You're told about new letters as they arrive and when you log in, and an ✉ badge shows unread letters.
 - On a controller, press A on a text box to type with the on-screen keyboard.
 
+## Players online and the group finder
+
+The top right of the screen (under the map) shows how many players are in a game right now; the hero screen shows it too. Click it, the **🔍 Find a group** button on the hero screen, or the one in the 👥 party window to open the group finder.
+
+- It lists every party whose leader chose to list it: the leader, a short note, where they are (town or which floor), their levels, who's in it and how full it is. **Join** takes you straight there, even from inside another game.
+- **Host co-op party** has a "List my party in the group finder" box (ticked by default, and remembered). The leader can turn listing on or off and write the note from the 👥 party window at any time.
+- Solo games never show up.
+
 ## Project layout
 
 ```

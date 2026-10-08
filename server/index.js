@@ -13,7 +13,7 @@ import { bankAction } from './bank.js';
 import { mailAction, mailOnJoin, setMailOnlineLookup } from './mail.js';
 import { adminHandler } from './admin.js';
 import { loadSecret, hashPassword, checkPassword, signToken, verifyToken, validUsername, validPassword, verifyGoogleToken, rateLimited } from './auth.js';
-import { Party, Member, parties } from './party.js';
+import { Party, Member, parties, listGroups, onlineCount } from './party.js';
 import { newCharacter, validName, CLASSES, xpToNext, derive, GAME_TITLE } from '../shared/rules.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -137,6 +137,13 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
 
     socket.on('play', async (d = {}, cb) => {
       try {
+        // Joining another party from inside a game: check it first, so a bad code doesn't drop you out.
+        if (d.mode === 'join') {
+          const target = parties.get(String(d.code || '').toUpperCase().trim());
+          if (!target || target.solo) return reply(cb, 'No party with that code');
+          if (member?.party === target) return reply(cb, "You're already in that party");
+          if (target.full) return reply(cb, 'That party is full (4 players)');
+        }
         if (member?.party) await member.party.remove(member);
         const charId = Number(d.charId);
         const char = await db.getCharacter(aid, charId);
@@ -152,7 +159,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
           if (!party || party.solo) return reply(cb, 'No party with that code');
           if (party.full) return reply(cb, 'That party is full (4 players)');
         } else {
-          party = new Party(io, db, { solo: d.mode === 'solo' });
+          party = new Party(io, db, { solo: d.mode === 'solo', listed: d.mode === 'host' && !!d.listed });
         }
         online.set(key, socket);
         member = new Member({ pid: String(pidSeq++), socket, accountId: aid, charId, char: fresh || char });
@@ -199,6 +206,10 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
       });
     }
     socket.on('duel', inParty((d) => duelAction(member.party, member, d)));
+    // Group finder: anyone signed in can look; the leader lists or unlists their party.
+    socket.on('groups', (d, cb) => { if (typeof cb === 'function') cb({ ok: true, groups: listGroups(), online: onlineCount(), mine: member?.party?.code || null }); });
+    socket.on('listParty', inParty((d) => member.party.setListing(member.pid, d.on, d.note)));
+    socket.emit('online', { n: onlineCount() });
     socket.on('chat', inParty((d) => {
       const text = String(d.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
       if (text) member.party.broadcast('chat', { pid: member.pid, name: member.char.name, text });
@@ -251,6 +262,10 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
 
+  // "N online" on everyone's screen: push the count when it changes.
+  let lastOnline = -1;
+  const onlineTimer = setInterval(() => { const n = onlineCount(); if (n !== lastOnline) { lastOnline = n; io.emit('online', { n }); } }, 2000);
+  onlineTimer.unref?.(); server.on('close', () => clearInterval(onlineTimer));
   await new Promise((r) => server.listen(port, r));
   console.log(`\n  ${GAME_TITLE} running on http://localhost:${server.address().port}\n`);
   return { server, io, db };
