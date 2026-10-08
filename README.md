@@ -148,6 +148,17 @@ Wrong passwords are limited to 5 tries per 10 minutes per IP. Every admin action
 - You're told about new letters as they arrive and when you log in, and an ✉ badge shows unread letters.
 - On a controller, press A on a text box to type with the on-screen keyboard.
 
+## Durability and repairs
+
+Weapons, shields and armor wear out (rings and amulets don't). Numbers are in `DURABILITY` in `shared/rules.js`.
+- **How gear wears:** a weapon has a 7% chance to lose a point each time it lands a hit. Each hit you take has a 30% chance to cost one worn armor piece or your shield a point. Dying costs every worn item 10% of its durability. Duels don't wear anything.
+- **Broken gear:** at 0 an item is broken and gives nothing (no damage, armor, block or bonuses) until it's repaired. Item cards show "Durability x / y", worn items get an orange edge, broken ones a red frame, and a HUD badge above the health bar warns you.
+- **Repairs:** Hilda the Smith repairs everything at once (**Repair all**) or one pack item. A full repair costs 25% of the item's value. Value grows with item level and rarity, so repairs get pricier deeper down, which takes gold out of the economy. As a rough guide, a rare item level 11 costs about 135 gold to fully repair, and a legendary item level 30 about 1,200.
+
+## Boss loot
+
+Every floor guardian (boss) drops, for each hero in the party: 3 high-quality items, **at least one guaranteed legendary** (random type, item level floor + 3), gold, potions, a Guardian's Sigil and the boss's own trophy material. Everyone on the floor gets their share, even if they're dead or across the map when the boss falls.
+
 ## Players online and the group finder
 
 The top right of the screen (under the map) shows how many players are in a game right now; the hero screen shows it too. Click it, the **🔍 Find a group** button on the hero screen, or the one in the 👥 party window to open the group finder.

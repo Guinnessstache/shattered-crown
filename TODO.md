@@ -14,3 +14,5 @@
 - [x] Bank — Odo the Banker (north-west of the square); 30 slots + gold shared by every hero on your account, up to 4 tabs bought with gold
 - [x] Mail — mailbox by the spawn point; letters to any hero with up to 6 items and gold attached, small postage, unclaimed letters go back after 30 days
 - [x] Players-online count by the minimap, and a group finder (list your party with a note; join listed parties from the hero screen or in game)
+- [x] Item durability and repairs at the smith (cost scales with item level and rarity, as a gold sink)
+- [x] Every boss kill drops at least one legendary for each hero in the party

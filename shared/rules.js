@@ -306,7 +306,43 @@ export function makeItem(rng, baseKey, ilvl, rarity = 'common') {
   it.req = Math.max(1, Math.floor(ilvl * 0.85));
   const rm = { common: 1, magic: 2.2, rare: 5, legendary: 12 }[rarity];
   it.value = round((8 + Math.pow(ilvl, 1.35) * 4) * rm);
+  if (DURABILITY.max[b.slot]) it.dur = it.durMax = DURABILITY.max[b.slot];
   return it;
+}
+
+// ---------------------------------------------------------------- durability
+// Gear wears down: weapons as they hit, armor and shields as you're hit, everything worn by 10%
+// when you die. At 0 an item is broken and gives nothing until Hilda the Smith repairs it.
+// Repairs cost a share of the item's value (which grows with item level and rarity), so they
+// take gold out of the game as heroes go deeper.
+export const DURABILITY = {
+  max: { weapon: 80, offhand: 70, head: 60, chest: 70, hands: 50, feet: 50 },
+  weaponWear: 0.07,  // chance a landed attack costs the weapon 1 point
+  armorWear: 0.3,    // chance a hit you take costs one worn armor piece 1 point
+  deathLoss: 0.1,    // share of max durability every worn item loses when you die
+  low: 0.25,         // warn below this share
+  repairRate: 0.25,  // a full repair costs this share of the item's value
+};
+// [current, max] for items that wear, or null (rings, amulets). Old items get full durability.
+export function durOf(it) {
+  if (!it) return null;
+  const max = it.durMax ?? DURABILITY.max[it.slot];
+  if (!max) return null;
+  return [Math.max(0, Math.min(max, it.dur ?? max)), max];
+}
+export function isBroken(it) { const d = durOf(it); return !!d && d[0] <= 0; }
+export function repairCost(it) {
+  const d = durOf(it);
+  if (!d || d[0] >= d[1]) return 0;
+  return Math.max(1, Math.ceil(((d[1] - d[0]) / d[1]) * (it.value || 10) * DURABILITY.repairRate));
+}
+// Take `n` points off; returns true if that just broke it.
+export function wear(it, n = 1) {
+  const d = durOf(it);
+  if (!d || d[0] <= 0) return false;
+  it.durMax = d[1];
+  it.dur = Math.max(0, d[0] - n);
+  return it.dur === 0;
 }
 
 export function randomItem(rng, ilvl, bias = 0, slotFilter = null) {
@@ -357,7 +393,7 @@ export function derive(ch, buffs = null) {
   let weapon = null;
   for (const slot of SLOTS) {
     const it = ch.equip?.[slot];
-    if (!it) continue;
+    if (!it || isBroken(it)) continue; // broken gear gives nothing until it's repaired
     if (slot === 'weapon') weapon = it;
     armor += it.armor || 0;
     block += it.block || 0;

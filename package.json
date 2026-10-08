@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test test/server.test.js test/auction.test.js test/duel.test.js test/sync.test.js test/twohand.test.js test/status.test.js test/bankmail.test.js test/groups.test.js"
+    "test": "node --test test/server.test.js test/auction.test.js test/duel.test.js test/sync.test.js test/twohand.test.js test/status.test.js test/bankmail.test.js test/groups.test.js test/durability.test.js test/bossloot.test.js"
   },
   "license": "UNLICENSED",
   "dependencies": {

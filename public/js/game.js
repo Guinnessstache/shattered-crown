@@ -75,6 +75,7 @@ export class Game {
     this.on('crafter', () => this.ui.openCraft());
     this.on('auction', () => this.ui.openAuction());
     this.on('bank', () => this.ui.openBank());
+    this.on('dur', (d) => this.ui.setDur(d));
     this.on('mailbox', () => this.ui.openMail());
     this.on('mailNotice', (d) => {
       this.ui.setMailUnread(d.unread);

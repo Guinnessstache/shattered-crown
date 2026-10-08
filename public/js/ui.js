@@ -1,5 +1,5 @@
 // HUD and panels: vitals, skill bar, messages, party frames, character sheet, shops, gate, menus.
-import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS, SYNC, classBlocks } from '/shared/rules.js';
+import { SKILLS, SLOTS, SLOT_NAMES, RARITY_COLOR, itemLines, xpToNext, CLASSES, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield, makeItem, AUCTION, itemAura, ELEMENTS, SYNC, classBlocks, isTwoHanded, durOf, isBroken, repairCost, DURABILITY } from '/shared/rules.js';
 import { itemIcon, setIconClass } from './render/icons.js';
 import { StatusRow } from './status.js';
 import { BankUI } from './bank.js';
@@ -334,6 +334,7 @@ export class UI {
     $('#pts-dot').classList.toggle('hidden', !(char.statPts > 0 || char.skillPts > 0));
     this.potions(char.potions);
     this.xp(char.xp, next);
+    this.durWarn();
     if (!$('#char-panel').classList.contains('hidden')) this.renderChar();
     if (!$('#shop-panel').classList.contains('hidden') && this.shopData) this.renderShop();
     if (this.craftSel) this.renderCraft();
@@ -345,7 +346,9 @@ export class UI {
   cant(it, ch = this.char) { return !!(ch && it && (it.req > ch.level || classBlocks(ch.cls, it))); }
 
   slotHtml(it, extra = '', attrs = '') {
-    const cls = it ? `slot ${it.rarity}${this.cant(it) ? ' cant' : ''}` : 'slot';
+    const dd = it ? durOf(it) : null;
+    const wornCls = dd ? (dd[0] <= 0 ? ' broken' : dd[0] / dd[1] < DURABILITY.low ? ' worn' : '') : '';
+    const cls = it ? `slot ${it.rarity}${this.cant(it) ? ' cant' : ''}${wornCls}` : 'slot';
     const au = it ? itemAura(it) : null;
     const hex = au?.col != null ? `#${au.col.toString(16).padStart(6, '0')}` : null;
     const style = hex ? ` style="box-shadow: inset 0 0 14px ${hex}55, inset 0 0 2px ${hex}"` : '';
@@ -429,6 +432,32 @@ export class UI {
     }
   }
 
+  // HUD warning when worn gear is low or broken (like an armor doll turning yellow / red).
+  durWarn() {
+    const el = $('#dur-warn'); const eq = this.char?.equip; if (!el || !eq) return;
+    let broken = 0; let low = 0;
+    for (const it of Object.values(eq)) { const d = durOf(it); if (!d) continue; if (d[0] <= 0) broken++; else if (d[0] / d[1] < DURABILITY.low) low++; }
+    el.classList.toggle('hidden', !broken && !low);
+    el.classList.toggle('broken', !!broken);
+    el.textContent = broken ? `🛠 ${broken} item${broken > 1 ? 's' : ''} broken` : `🛠 Gear wearing out`;
+  }
+  // A durability update from the server for worn items: { slot: [dur, max] }.
+  setDur(changed) {
+    const eq = this.char?.equip; if (!eq) return;
+    for (const [slot, [d, mx]] of Object.entries(changed)) if (eq[slot]) { eq[slot].dur = d; eq[slot].durMax = mx; }
+    this.durWarn();
+    if (!$('#char-panel').classList.contains('hidden')) this.renderChar();
+  }
+
+  // "Durability 34 / 70", orange when low, red when broken (with the repair price at the smith).
+  durLine(it) {
+    const d = durOf(it); if (!d) return '';
+    const k = d[0] / d[1];
+    const cls = d[0] <= 0 ? 'broken' : k < DURABILITY.low ? 'low' : '';
+    const fix = repairCost(it);
+    return `<div class="dur ${cls}">${d[0] <= 0 ? '⚠ Broken: gives nothing until repaired' : `Durability ${d[0]} / ${d[1]}`}${fix ? ` <span class="muted">· repair ${fmt(fix)}g at the smith</span>` : ''}</div>`;
+  }
+
   itemCard(it, { compare = null, price = null } = {}) {
     if (!it) return '';
     const ch = this.char;
@@ -445,7 +474,7 @@ export class UI {
     }
     return `<div class="idet"><div class="nm" style="color:${RARITY_COLOR[it.rarity]}">${esc(it.name)}</div>
       <div class="ty">${typeName}${it.rarity[0].toUpperCase()}${it.rarity.slice(1)} ${SLOT_NAMES[it.slot]} · item level ${it.ilvl}</div>
-      <ul>${lines.map((l, i) => { const el = Object.values(ELEMENTS).find((e) => l.includes(`${e.name === 'Frost' ? 'Cold' : e.name} Damage`)); return `<li class="${i >= (it.dmg ? 2 : 0) + (it.armor ? 1 : 0) + (it.block ? 1 : 0) ? 'mod' : ''}"${el ? ` style="color:${el.css}"` : ''}>${el ? `${el.icon} ` : ''}${esc(l)}</li>`; }).join('')}</ul>
+      <ul>${lines.map((l, i) => { const el = Object.values(ELEMENTS).find((e) => l.includes(`${e.name === 'Frost' ? 'Cold' : e.name} Damage`)); return `<li class="${i >= (it.dmg ? 2 : 0) + (isTwoHanded(it) ? 1 : 0) + (it.armor ? 1 : 0) + (it.block ? 1 : 0) ? 'mod' : ''}"${el ? ` style="color:${el.css}"` : ''}>${el ? `${el.icon} ` : ''}${esc(l)}</li>`; }).join('')}</ul>${this.durLine(it)}
       ${it.crafted ? `<div style="font-size:12px;color:#c9a0ff;margin-top:4px">Crafted by ${esc(it.crafted)}</div>` : ''}
       <div class="req ${ch && it.req > ch.level ? 'bad' : ''}" style="font-size:12px;margin-top:4px">Requires level ${it.req} · ${price != null ? `Price <b style="color:#ffd76a">${fmt(price)}</b>` : `Sells for ${fmt(it.value)} gold`}</div>${ch && classBlocks(ch.cls, it) ? `<div class="req bad" style="font-size:12px">${CLASSES[ch.cls].name}s can't use shields</div>` : ''}${cmp}</div>`;
   }
@@ -654,6 +683,15 @@ export class UI {
       <button class="btn" data-pot="mp" data-n="5" type="button">×5 — ${d.potions.mp * 5}g</button>
       <span class="muted" style="align-self:center">You have ❤ ${ch.potions.hp} ✦ ${ch.potions.mp}</span>` : '';
     $$('#shop-potions [data-pot]').forEach((b) => b.addEventListener('click', () => this.h.inv({ op: 'potion', kind: b.dataset.pot, n: Number(b.dataset.n) })));
+    if (d.npc === 'smith') {
+      // Repairs: everything worn and in the pack at once.
+      const all = [...Object.values(ch.equip), ...ch.inv].filter((it) => repairCost(it) > 0);
+      const cost = all.reduce((n, it) => n + repairCost(it), 0);
+      $('#shop-potions').innerHTML = all.length
+        ? `<button class="btn gold" id="repair-all" type="button" ${ch.gold < cost ? 'disabled' : ''}>🛠 Repair all (${all.length}) — ${fmt(cost)}g</button><span class="muted" style="align-self:center;font-size:13px">${ch.gold < cost ? 'Not enough gold. Pick one item to repair just that.' : 'Worn gear and anything damaged in your pack.'}</span>`
+        : '<span class="muted" style="align-self:center;font-size:13px">🛠 All your gear is in good repair.</span>';
+      $('#repair-all')?.addEventListener('click', () => this.h.inv({ op: 'repairAll' }));
+    }
     $('#shop-stock').innerHTML = d.stock.length ? d.stock.map((it, i) => `<button class="shop-item ${this.shopSel?.buy === i ? 'sel' : ''}" data-buy="${i}" type="button"><img class="ic" src="${itemIcon(it)}" width="34" height="34" alt=""><span class="nm c-${it.rarity}">${esc(it.name)}</span>${this.isUpgrade(it) ? '<span style="color:#7fe39a">▲</span>' : ''}<span class="pr">${fmt(it.price)}g</span></button>`).join('') : '<div class="muted">Sold out until your next visit.</div>';
     $('#shop-sell').innerHTML = ch.inv.map((it, i) => this.slotHtml(it, this.shopSel?.sell === i ? 'sel' : '', `data-sell="${i}"`)).join('');
     $$('#shop-stock [data-buy]').forEach((b) => b.addEventListener('click', () => { this.shopSel = { buy: Number(b.dataset.buy) }; this.renderShop(); }));
@@ -665,7 +703,9 @@ export class UI {
       $('#shop-buy').addEventListener('click', () => { this.h.inv({ op: 'buy', i: this.shopSel.buy }); this.shopSel = null; });
     } else if (this.shopSel?.sell != null && ch.inv[this.shopSel.sell]) {
       const it = ch.inv[this.shopSel.sell];
-      box.innerHTML = `${this.itemCard(it)}<div style="margin-top:8px;display:flex;gap:8px"><button class="btn small" id="shop-sell-btn" type="button">Sell for ${fmt(it.value)} gold</button><button class="btn small gold" id="shop-eq-btn" type="button" ${this.cant(it, ch) ? 'disabled' : ''}>Equip</button></div>`;
+      const fix = d.npc === 'smith' ? repairCost(it) : 0;
+      box.innerHTML = `${this.itemCard(it)}<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="shop-sell-btn" type="button">Sell for ${fmt(it.value)} gold</button><button class="btn small gold" id="shop-eq-btn" type="button" ${this.cant(it, ch) ? 'disabled' : ''}>Equip</button>${fix ? `<button class="btn small" id="shop-fix-btn" type="button" ${ch.gold < fix ? 'disabled' : ''}>🛠 Repair — ${fmt(fix)}g</button>` : ''}</div>`;
+      $('#shop-fix-btn')?.addEventListener('click', () => this.h.inv({ op: 'repair', idx: this.shopSel.sell }));
       $('#shop-sell-btn').addEventListener('click', () => { this.h.inv({ op: 'sell', idx: this.shopSel.sell }); this.shopSel = null; });
       $('#shop-eq-btn').addEventListener('click', () => this.h.inv({ op: 'equip', idx: this.shopSel.sell }));
     } else box.innerHTML = '<div class="muted" style="font-size:13px">Pick something to buy, or an item from your pack to sell.</div>';

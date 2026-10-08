@@ -4,7 +4,7 @@
 import { buildMap, moveCircle, lineOfSight, distanceField, toTile, TILE, isBossFloor } from '../shared/map.js';
 import { RNG, hashSeed } from '../shared/rng.js';
 import { DUEL, settleDuel } from './duel.js';
-import { MONSTERS, SKILLS, CLASSES, SYNC, syncCapFor, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY, MONSTER_DEBUFF, SLAM_DAZE, SLOW_MULT } from '../shared/rules.js';
+import { MONSTERS, SKILLS, CLASSES, SYNC, syncCapFor, monsterStats, armorReduction, randomItem, makeItem, MAX_POTIONS, MATERIALS, BOSS_TROPHY, MONSTER_DEBUFF, SLAM_DAZE, SLOW_MULT, DURABILITY, wear, durOf } from '../shared/rules.js';
 
 const TICK = 1 / 20;
 const PLAYER_R = 0.45;
@@ -455,6 +455,7 @@ export class Zone {
     dmg = Math.max(1, Math.round(dmg + elDmg));
     e.hp -= dmg;
     this.events.push({ t: 'dmg', id: e.id, v: dmg, c: crit ? 1 : 0, hp: Math.max(0, e.hp), el: mainEl || undefined });
+    if (p.wearAt !== this.time) { p.wearAt = this.time; if (this.rng.chance(DURABILITY.weaponWear)) this.wearGear(p, ['weapon']); }
     if (s.lifeSteal && p.hp > 0) p.hp = Math.min(s.hpMax, p.hp + dmg * s.lifeSteal / 100);
     if (e.hp <= 0) { this.killMonster(e, p); return; }
     if (mainEl) this.applyElements(p, e, el, mult);
@@ -537,7 +538,7 @@ export class Zone {
     setTimeout(() => this.ents.delete(m.id), 100);
     const xpShare = this.players.size > 1 ? 1.1 : 1; // small co-op bonus, everyone gets full XP
     for (const p of this.players.values()) {
-      if (Math.hypot(p.x - m.x, p.y - m.y) > 60) continue;
+      if (!m.boss && Math.hypot(p.x - m.x, p.y - m.y) > 60) continue; // a boss rewards the whole party
       this.party.grantXp(p.pid, Math.round(m.xp * xpShare * (p.member.synced ? 1 + SYNC.xpBonus : 1)));
       p.member.char.kills = (p.member.char.kills || 0) + 1;
       this.rollLoot(p, m.x, m.y, m.boss ? 'boss' : m.elite ? 'elite' : 'mob', m);
@@ -578,6 +579,8 @@ export class Zone {
     } else if (source === 'boss') {
       drops.push({ gold: gold() * 10 });
       for (let i = 0; i < 3; i++) drops.push({ item: randomItem(rng, floor + 3, 2) });
+      // Every boss kill guarantees each hero one legendary (random type).
+      drops.push({ item: makeItem(rng, randomItem(rng, floor + 3, 2).base, floor + 3, 'legendary') });
       drops.push({ potion: 'hp' }, { potion: 'mp' });
       // Boss-only crafting materials
       drops.push({ mat: 'sigil', n: 1 });
@@ -757,6 +760,8 @@ export class Zone {
     }
     p.hp -= dmg;
     const D = this.duel;
+    const inDuel = D && (D.a === p.pid || D.b === p.pid);
+    if (!inDuel && this.rng.chance(DURABILITY.armorWear)) this.wearGear(p, ['offhand', 'head', 'chest', 'hands', 'feet'], true);
     if (D?.state === 'fight' && (D.a === p.pid || D.b === p.pid) && p.hp <= 0) {
       p.hp = 1;
       this.events.push({ t: 'dmg', id: p.id, v: dmg, hp: 1 });
@@ -794,8 +799,31 @@ export class Zone {
     if (p.hp <= 0) this.killPlayer(p);
   }
 
+  // Durability loss. `one`: a single random piece from `slots` (a hit), else every piece listed.
+  wearGear(p, slots, one = false, amount = 1) {
+    const eq = p.member.char.equip;
+    let pick = slots.filter((s) => { const d = durOf(eq[s]); return d && d[0] > 0; });
+    if (!pick.length) return;
+    if (one) pick = [pick[this.rng.int(0, pick.length - 1)]];
+    const changed = {}; let broke = null;
+    for (const s of pick) {
+      const it = eq[s];
+      const n = typeof amount === 'function' ? amount(it) : amount;
+      if (wear(it, n)) broke = it;
+      changed[s] = [it.dur, it.durMax];
+    }
+    p.member.dirty = true;
+    this.party.emitTo(p.pid, 'dur', changed);
+    if (broke) {
+      this.refreshStats(p.pid);
+      this.party.emitTo(p.pid, 'msg', { text: `Your ${broke.name} broke! Repair it at Hilda the Smith.`, kind: 'warn' });
+      this.party.sendChar(p.pid);
+    }
+  }
+
   killPlayer(p) {
     p.dead = true; p.hp = 0; p.respawnAt = this.time + RESPAWN_S;
+    this.wearGear(p, ['weapon', 'offhand', 'head', 'chest', 'hands', 'feet'], false, (it) => Math.ceil(durOf(it)[1] * DURABILITY.deathLoss));
     p.poison = null; p.burn = null; p.slowUntil = 0; p.hot = null;
     const ch = p.member.char;
     const lost = Math.floor(ch.gold * 0.1);

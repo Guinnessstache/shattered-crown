@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { Zone } from './zone.js';
 import { RNG } from '../shared/rng.js';
 import {
-  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, classBlocks, isTwoHanded, randomItem, makeItem,
+  PARTY_MAX, SKILLS, CLASSES, FREE_POINTS_PER_LEVEL, MAX_LEVEL, xpToNext, derive, syncedChar, canEquip, classBlocks, isTwoHanded, repairCost, durOf, randomItem, makeItem,
   potionPrice, MAX_POTIONS, INV_SIZE, SLOTS, BASES, MATERIALS, RECIPES, CRAFT_BASES, salvageYield,
 } from '../shared/rules.js';
 import { lookOf } from './db.js';
@@ -249,6 +249,20 @@ export class Party {
         inv[idx] = null;
         break;
       }
+      // Hilda the Smith repairs one item (equipped slot or pack index) or everything at once.
+      case 'repair': case 'repairAll': {
+        if (this.nearNpc(pid) !== 'smith') return 'Find Hilda the Smith to repair gear';
+        const list = a.op === 'repairAll'
+          ? [...SLOTS.map((sl) => ch.equip[sl]), ...inv].filter((it) => repairCost(it) > 0)
+          : [a.slot ? ch.equip[String(a.slot)] : validIdx(idx) ? inv[idx] : null].filter((it) => repairCost(it) > 0);
+        if (!list.length) return 'Nothing needs repairing';
+        const cost = list.reduce((n, it) => n + repairCost(it), 0);
+        if (ch.gold < cost) return `Repairs cost ${cost.toLocaleString()} gold`;
+        ch.gold -= cost;
+        for (const it of list) { const d = durOf(it); it.durMax = d[1]; it.dur = d[1]; }
+        this.emitTo(pid, 'msg', { text: `Repaired ${list.length > 1 ? `${list.length} items` : list[0].name} for ${cost.toLocaleString()} gold`, kind: 'good' });
+        break;
+      }
       case 'stat': {
         const k = String(a.stat);
         if (!['str', 'dex', 'vit', 'spi'].includes(k)) return 'Bad stat';
@@ -339,7 +353,7 @@ export class Party {
       default: return 'Unknown action';
     }
     m.dirty = true;
-    if (['equip', 'unequip', 'stat', 'skill'].includes(a.op)) this.zone?.refreshStats(pid);
+    if (['equip', 'unequip', 'stat', 'skill', 'repair', 'repairAll'].includes(a.op)) this.zone?.refreshStats(pid);
     this.sendChar(pid);
     return null;
   }

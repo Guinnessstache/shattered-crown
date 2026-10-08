@@ -239,6 +239,7 @@ export async function startServer({ port = Number(process.env.PORT) || 3000, dat
           const i = member.char.inv.findIndex((x) => !x); if (i >= 0) member.char.inv[i] = it;
           party.sendChar(member.pid);
         }
+        if (d.cmd === 'wear') { for (const it of Object.values(member.char.equip)) if (it && it.slot !== 'ring' && it.slot !== 'amulet') { it.durMax ??= 50; it.dur = Math.max(0, Number(d.n) || 0); } party.zone?.refreshStats(member.pid); party.sendChar(member.pid); }
         if (d.cmd === 'debuff' && p) { const z = party.zone; if (d.slow) { p.slowUntil = z.time + Number(d.slow); } else z.debuffPlayer(p, String(d.type || 'spider'), Number(d.dmg) || 4); }
         if (d.cmd === 'mdebuff') { const z = party.zone; for (const e of z.ents.values()) if (e.k === 'm' && e.state !== 'dead') { e.stunUntil = z.time + 3; e.poison = { stacks: 3, per: 0, until: z.time + 6, by: member.pid }; e.chillUntil = e.slowUntil = z.time + 4; } }
         if (d.cmd === 'killboss' && p) { const z = party.zone; for (const e of z.ents.values()) if (e.k === 'm' && e.boss && e.state !== 'dead') { p.x = e.x + 1.5; p.y = e.y; member.socket.emit('correct', { x: p.x, y: p.y }); z.killMonster(e, p); } }
