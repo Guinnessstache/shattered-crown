@@ -230,7 +230,7 @@ export class Game {
           if (ev.b) { W.fx.number(v.x, h, v.y, 'Block', 'block'); this.sfx.play('block'); v.anim?.play('bash', 0.15); break; }
           if (ev.w) { W.fx.number(v.x, h, v.y, 'Absorbed', 'block'); this.sfx.play('block'); break; }
           if (ev.id === this.myId) { this.hp = ev.hp; W.fx.number(v.x, h, v.y, ev.v, 'me'); this.sfx.play('hurt'); W.shakeCam(0.18); this.input.rumble(90, 0.5, 0.3); W.post.pulse(0x8a0a06, Math.min(0.55, 0.18 + ev.v / Math.max(1, this.hpMax || 100))); }
-          else if (this.duel?.live && (ev.id === this.duel.a || ev.id === this.duel.b)) { W.fx.number(v.x, h, v.y, ev.v, ''); this.sfx.play('hit'); }
+          else if (this.duel?.live && (ev.id === this.duel.a || ev.id === this.duel.b)) { W.fx.number(v.x, h, v.y, ev.v, ''); this.sfx.play('clash'); }
           if (v.anim) v.anim.flinch = 0.15;
           W.fx.emit(v.x, 1.1, v.y, 8, { color: 0xb01010, speed: 2, size: 0.18, life: 0.4 });
         } else {

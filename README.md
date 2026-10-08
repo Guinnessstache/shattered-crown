@@ -155,6 +155,10 @@ Weapons, shields and armor wear out (rings and amulets don't). Numbers are in `D
 - **Broken gear:** at 0 an item is broken and gives nothing (no damage, armor, block or bonuses) until it's repaired. Item cards show "Durability x / y", worn items get an orange edge, broken ones a red frame, and a HUD badge above the health bar warns you.
 - **Repairs:** Hilda the Smith repairs everything at once (**Repair all**) or one pack item. A full repair costs 25% of the item's value. Value grows with item level and rarity, so repairs get pricier deeper down, which takes gold out of the economy. As a rough guide, a rare item level 11 costs about 135 gold to fully repair, and a legendary item level 30 about 1,200.
 
+## Sound effects
+
+Combat and item sounds use recorded clips from Kenney's **RPG Audio** pack (CC0, kenney.nl), trimmed, loudness-matched and converted to small MP3s in `public/sfx/` (about 160 KB in all). Each play picks one of several takes and nudges its pitch so repeats don't sound identical; hits, crits and Shield Bash layer a little synthesized thump underneath for weight. Duels play a blade-on-blade clang. Sounds without a clip yet (spells, footsteps, level-up) are still synthesized, and everything falls back to synthesis until the clips have loaded. The mapping is in `playClip()` in `public/js/audio.js`.
+
 ## Boss loot
 
 Every floor guardian (boss) drops, for each hero in the party: 3 high-quality items, **at least one guaranteed legendary** (random type, item level floor + 3), gold, potions, a Guardian's Sigil and the boss's own trophy material. Everyone on the floor gets their share, even if they're dead or across the map when the boss falls.
